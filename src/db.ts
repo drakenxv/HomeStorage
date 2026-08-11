@@ -27,6 +27,7 @@ export type Storage = {
 export type Category = {
   id: string;
   name: string;
+  parentId?: string;
 };
 
 export type Shopping = {
