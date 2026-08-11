@@ -60,6 +60,11 @@ const translations: Record<Lang, Record<string, string>> = {
     noMatches: "No matching items.",
     storageTitle: "Storage",
     addStoragePlace: "Add storage place",
+    parentLabel: "Parent",
+    viewListings: "View listings",
+    newItemTitle: "New Item",
+    changeItemLabel: "Change item",
+    createNewLabel: "Create new",
     edit: "Edit",
     delete: "Delete",
     reportsTitle: "Reports",
@@ -138,6 +143,11 @@ const translations: Record<Lang, Record<string, string>> = {
     noMatches: "Keine passenden Einträge.",
     storageTitle: "Lager",
     addStoragePlace: "Lagerplatz hinzufügen",
+    parentLabel: "Eltern",
+    viewListings: "Alle Einträge anzeigen",
+    newItemTitle: "Neuer Artikel",
+    changeItemLabel: "Artikel ändern",
+    createNewLabel: "Neu erstellen",
     edit: "Bearbeiten",
     delete: "Löschen",
     reportsTitle: "Berichte",
@@ -261,6 +271,8 @@ function render() {
   else if (currentView === "inventory") renderInventory();
   else if (currentView === "storage") renderStorage();
   else if (currentView === "reports") renderReports();
+  else if (currentView === "reports-expiring") renderReports("expiring");
+  else if (currentView === "reports-under") renderReports("under");
   else if (currentView === "shopping") renderShopping();
   else if (currentView === "settings") renderSettings();
   else if (currentView === "categories") renderCategories();
@@ -342,12 +354,12 @@ function renderInventory(initialFilter?: string) {
     const cat = document.querySelector<HTMLSelectElement>("#categoryFilter")!.value;
     const rows = items.filter(i => (filter==="all" || stock.some(s=>s.itemId===i.id && s.storageId===filter)) && (cat==="all" || i.category===categories.find(c=>c.id===cat)?.name) && (i.name.toLowerCase().includes(q) || i.category.toLowerCase().includes(q))).map(i => {
       const rows = stock.filter(s=>s.itemId===i.id && (filter==="all" || s.storageId===filter));
-      return `<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${rows.map(s=>`${esc(storageName(s.storageId))}: ${s.amount}${s.bestBefore ? ` · ${formatBestBefore(s.bestBefore)}`:""}`).join(" | ") || "No stock"}</div></div><div class="row"><button class="secondary" data-listings="${i.id}">${tr("expiringTitle")}</button><button class="secondary" data-edit-item="${i.id}">${tr("edit")}</button></div><span class="badge">${totalForItem(i.id)}</span></div>`;
+      return `<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${rows.map(s=>`${esc(storageName(s.storageId))}: ${s.amount}${s.bestBefore ? ` · ${formatBestBefore(s.bestBefore)}`:""}`).join(" | ") || "No stock"}</div></div><div class="row"><button class="secondary" data-listings="${i.id}">${tr("viewListings")}</button><button class="secondary" data-edit-item="${i.id}">${tr("edit")}</button></div><span class="badge">${totalForItem(i.id)}</span></div>`;
     }).join("");
     document.querySelector("#inventoryList")!.innerHTML = rows || `<div class="empty">${tr("noInventory")}</div>`;
     document.querySelectorAll<HTMLElement>("[data-listings]").forEach(b=>b.onclick=()=>showItemListings(b.dataset.listings!));
     document.querySelectorAll<HTMLElement>("[data-edit-item]").forEach(b=>b.onclick=()=>{
-      const id = b.dataset.editItem!; const it = items.find(x=>x.id===id)!; newItemForm("",{name:it.name,category:it.category,itemSize:String(it.itemSize),itemSizeUnit:it.itemSizeUnit,minimum:String(it.minimum),barcode:it.barcode,notes:it.notes}, id);
+      const id = b.dataset.editItem!; const it = items.find(x=>x.id===id)!; newItemForm("",{name:it.name,category:it.category,itemSize:String(it.itemSize),itemSizeUnit:it.itemSizeUnit,minimum:String(it.minimum),barcode:it.barcode,notes:it.notes,storage:storage.find(s=>stock.filter(x=>x.itemId===id&&x.storageId===s.id).reduce((sum,x)=>sum+x.amount,0) > 0 ? s.id : "")}, id);
     });
   };
   document.querySelectorAll<HTMLButtonElement>("[data-filter]").forEach(b => b.onclick=()=>renderList(b.dataset.filter));
@@ -365,13 +377,14 @@ function renderStorage() {
   document.querySelectorAll<HTMLElement>("[data-delete]").forEach(b=>b.onclick=async()=>{if(confirm(`${tr("delete")}?`)){await db.deleteStorage(b.dataset.delete!); await load();}});
 }
 
-function renderReports() {
+function renderReports(section: "expiring" | "under" = "expiring") {
   const expiring = stock.filter(s => daysUntil(s.bestBefore) <= 7);
   const under = items.filter(i => totalForItem(i.id) < i.minimum);
-  layout(`<section class="section"><h2>Reports</h2>
-    <h3>Best-Before expiring</h3><div class="list">${expiring.map(stockRow).join("") || `<div class="empty">None.</div>`}</div>
-    <h3>Under minimum</h3><div class="list">${under.map(i=>`<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">Current: ${totalForItem(i.id)} · Minimum: ${i.minimum}</div></div><button class="secondary" data-shop="${i.id}">Shopping list</button></div>`).join("") || `<div class="empty">None.</div>`}</div>
+  layout(`<section class="section"><h2>${tr("reportsTitle")}</h2>
+    <div class="row"><button class="secondary" data-report="expiring">${tr("expiringTitle")}</button><button class="secondary" data-report="under">${tr("underMinimumTitle")}</button></div>
+    ${section === "expiring" ? `<div class="list">${expiring.map(stockRow).join("") || `<div class="empty">${tr("none")}</div>`}</div>` : `<div class="list">${under.map(i=>`<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${tr("shoppingListTitle")}: ${totalForItem(i.id)} · ${tr("minimumLabel")}: ${i.minimum}</div></div><button class="secondary" data-shop="${i.id}">${tr("shoppingListTitle")}</button></div>`).join("") || `<div class="empty">${tr("none")}</div>`}</div>`}
   </section>`);
+  document.querySelectorAll<HTMLElement>("[data-report]").forEach(b=>b.onclick=()=>{currentView = b.dataset.report === "under" ? "reports-under" : "reports-expiring"; render();});
   document.querySelectorAll<HTMLElement>("[data-shop]").forEach(b=>b.onclick=async()=>{const i=items.find(x=>x.id===b.dataset.shop)!;await db.putShopping({id:uid(),itemId:i.id,name:i.name,amount:Math.max(i.minimum-totalForItem(i.id),1),checked:false});await load();});
 }
 
@@ -402,7 +415,7 @@ function openMenu() {
   const overlay = document.querySelector("#overlay")!;
   overlay.innerHTML = `<div class="drawer"><div class="drawer-panel"><h2>${tr("homeStorageTitle")}</h2>
     ${[
-      ["dashboard",tr("dashboardNav")],["addremove",tr("addremoveNav")],["inventory",tr("inventoryNav")],["storage",tr("storageNav")],["reports",tr("reportsNav")],["shopping",tr("shoppingNav")],["categories",tr("categoriesNav")],["settings",tr("settingsNav")]
+      ["dashboard",tr("dashboardNav")],["addremove",tr("addremoveNav")],["inventory",tr("inventoryNav")],["storage",tr("storageNav")],["reports-expiring",tr("reportsNav")],["shopping",tr("shoppingNav")],["categories",tr("categoriesNav")],["settings",tr("settingsNav")]
     ].map(([id,label])=>`<button data-nav="${id}">${label}</button>`).join("")}
     <hr><button disabled>Recipes — future release</button><button disabled>Wishlist — future release</button>
   </div></div>`;
@@ -414,11 +427,11 @@ function openAddRemove() {
   currentView="addremove"; renderAddRemovePage();
 }
 
-function storageForm(id?: string, onComplete?: ()=>Promise<void>) {
+function storageForm(id?: string, onComplete?: ()=>Promise<void>, onCancel?: ()=>Promise<void>) {
   const existing = storage.find(s=>s.id===id);
-  const parentOptions = `<option value="">—</option>` + storage.map(s=>`<option value="${esc(s.id)}" ${s.id===existing?.parentId?`selected`:``}>${esc(s.name)}</option>`).join("");
+  const parentOptions = `<option value="">—</option>` + storage.filter(s=>s.id!==id).map(s=>`<option value="${esc(s.id)}" ${s.id===existing?.parentId?`selected`:``}>${esc(s.name)}</option>`).join("");
   showModal(`<h2>${existing?tr("edit"):tr("addStoragePlace")}</h2><button class="icon-btn close-button" id="closeX" aria-label="${tr("cancel")}">×</button><div class="field"><label>${tr("nameLabel")}</label><input id="storageName" value="${esc(existing?.name??"")}"></div>
-  <div class="field"><label>Parent</label><select id="parent">${parentOptions}</select></div>
+  <div class="field"><label>${tr("parentLabel")}</label><select id="parent">${parentOptions}</select></div>
   <div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button><button class="primary" id="save">${tr("save")}</button></div>`, async()=>{
     const name=document.querySelector<HTMLInputElement>("#storageName")!.value.trim();
     const parent=document.querySelector<HTMLSelectElement>('#parent')!.value || undefined;
@@ -426,14 +439,14 @@ function storageForm(id?: string, onComplete?: ()=>Promise<void>) {
     await db.putStorage({id:id??uid(),name,parentId:parent});
     await load();
     if(onComplete) await onComplete();
-  });
+  }, onCancel);
 }
 
-function showModal(html:string,onSave?:()=>Promise<void>) {
+function showModal(html:string,onSave?:()=>Promise<void>,onCancel?:()=>Promise<void>) {
   const overlay=document.querySelector("#overlay")!;
   overlay.innerHTML=`<div class="modal"><div class="modal-box">${html}</div></div>`;
-  overlay.querySelector("#cancel")?.addEventListener("click",()=>overlay.innerHTML="");
-  overlay.querySelector("#closeX")?.addEventListener("click",()=>overlay.innerHTML="");
+  overlay.querySelector("#cancel")?.addEventListener("click",async()=>{if(onCancel){await onCancel();}else{overlay.innerHTML="";}});
+  overlay.querySelector("#closeX")?.addEventListener("click",async()=>{if(onCancel){await onCancel();}else{overlay.innerHTML="";}});
   overlay.querySelector("#save")?.addEventListener("click",async()=>{await onSave?.();overlay.innerHTML="";});
 }
 
@@ -453,29 +466,52 @@ function unitForm(name?: string) {
 
 async function adjustItem(itemId:string, delta:number) {
   const item=items.find(i=>i.id===itemId)!;
+  const itemStock = stock.filter(s=>s.itemId===itemId);
+  const majorityStorage = itemStock.reduce((best, s) => {
+    const current = itemStock.filter(x=>x.storageId===s.storageId).reduce((sum,x)=>sum+x.amount,0);
+    const bestAmt = best ? itemStock.filter(x=>x.storageId===best.storageId).reduce((sum,x)=>sum+x.amount,0) : 0;
+    return current > bestAmt ? s : best;
+  }, itemStock[0]);
   if(delta>0) {
     if(storage.length===0){alert("Create a storage place first.");currentView="storage";render();return;}
-    const options=storage.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("");
-    showModal(`<h2>Add ${esc(item.name)}</h2><div class="field"><label>Storage place</label><select id="s">${options}</select></div><div class="field"><label>Best-Before</label><input id="bb" type="date"></div><div class="field"><label>Amount</label><input id="amt" type="number" min="1" value="1"></div><div class="actions"><button class="secondary" id="cancel">Cancel</button><button class="primary" id="save">Add</button></div>`,async()=>{
+    const defaultStorage = majorityStorage?.storageId || storage[0].id;
+    const options=storage.map(s=>`<option value="${s.id}"${s.id===defaultStorage?` selected`:``}>${esc(s.name)}</option>`).join("");
+    showModal(`<h2>Add ${esc(item.name)}</h2><div class="field"><label>${tr("storagePlaceLabel")}</label><select id="s">${options}</select></div><div class="field"><label>${tr("bestBeforeLabel")}</label><input id="bb" type="text" placeholder="mmyy"></div><div class="field"><label>${tr("amountLabel")}</label><div class="amount-row"><button class="secondary small" type="button" id="decrementAmount">-</button><input id="amt" type="number" min="1" value="1"><button class="secondary small" type="button" id="incrementAmount">+</button></div></div><div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button><button class="primary" id="save">${tr("add")}</button></div>`,async()=>{
       const sid=document.querySelector<HTMLSelectElement>("#s")!.value;
       const amount=Number(document.querySelector<HTMLInputElement>("#amt")!.value)||1;
-      const bb=document.querySelector<HTMLInputElement>("#bb")!.value||undefined;
+      const bb=parseBestBefore(document.querySelector<HTMLInputElement>("#bb")!.value);
       const existing=stock.find(s=>s.itemId===itemId&&s.storageId===sid&&s.bestBefore===bb);
       if(existing){existing.amount+=amount;await db.putStock(existing)}
       else await db.putStock({id:uid(),itemId,storageId:sid,amount,bestBefore:bb});
       await load();
     });
+    document.querySelector<HTMLButtonElement>("#incrementAmount")?.addEventListener("click",()=>{
+      const amt=document.querySelector<HTMLInputElement>("#amt")!;
+      amt.value=String((Number(amt.value)||0)+1);
+    });
+    document.querySelector<HTMLButtonElement>("#decrementAmount")?.addEventListener("click",()=>{
+      const amt=document.querySelector<HTMLInputElement>("#amt")!;
+      amt.value=String(Math.max(1,(Number(amt.value)||1)-1));
+    });
   } else {
     const candidates=stock.filter(s=>s.itemId===itemId&&s.amount>0);
     if(!candidates.length){alert("No stock available.");return;}
     const options=candidates.map(s=>`<option value="${s.id}">${esc(storageName(s.storageId))} — ${s.amount}${s.bestBefore?` · ${s.bestBefore}`:""}</option>`).join("");
-    showModal(`<h2>Remove ${esc(item.name)}</h2><div class="field"><label>Storage place</label><select id="s">${options}</select></div><div class="field"><label>Amount</label><input id="amt" type="number" min="1" value="1"></div><div class="actions"><button class="secondary" id="cancel">Cancel</button><button class="primary" id="save">Remove</button></div>`,async()=>{
+    showModal(`<h2>Remove ${esc(item.name)}</h2><div class="field"><label>${tr("storagePlaceLabel")}</label><select id="s">${options}</select></div><div class="field"><label>${tr("amountLabel")}</label><div class="amount-row"><button class="secondary small" type="button" id="decrementAmount">-</button><input id="amt" type="number" min="1" value="1"><button class="secondary small" type="button" id="incrementAmount">+</button></div></div><div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button><button class="primary" id="save">${tr("remove")}</button></div>`,async()=>{
       const sid=document.querySelector<HTMLSelectElement>("#s")!.value;
       const amount=Number(document.querySelector<HTMLInputElement>("#amt")!.value)||1;
       const s=stock.find(x=>x.id===sid)!;
       s.amount=Math.max(0,s.amount-amount);
       if(s.amount===0)await db.deleteStock(s.id);else await db.putStock(s);
       await load();
+    });
+    document.querySelector<HTMLButtonElement>("#incrementAmount")?.addEventListener("click",()=>{
+      const amt=document.querySelector<HTMLInputElement>("#amt")!;
+      amt.value=String((Number(amt.value)||0)+1);
+    });
+    document.querySelector<HTMLButtonElement>("#decrementAmount")?.addEventListener("click",()=>{
+      const amt=document.querySelector<HTMLInputElement>("#amt")!;
+      amt.value=String(Math.max(1,(Number(amt.value)||1)-1));
     });
   }
 }
@@ -542,7 +578,7 @@ function newItemForm(barcode="", prefill: Partial<Record<string,string>> = {}, e
   const defaultStorage = prefill.storage || (storage[0]?.id ?? "");
   const storageOptions = storage.map(s => `<option value="${esc(s.id)}"${s.id===defaultStorage ? " selected" : ""}>${esc(s.name)}</option>`).join("");
   const unitOptionsWithSelected = sizeUnits.map(u=>`<option value="${esc(u)}"${u===defaultItemSizeUnit ? " selected" : ""}>${esc(u)}</option>`).join("");
-  showModal(`<h2>New item</h2><button class="icon-btn close-button" id="closeX" aria-label="${tr("cancel")}">×</button>
+  showModal(`<h2>${editId ? tr("edit") : tr("newItemTitle")}</h2><button class="icon-btn close-button" id="closeX" aria-label="${tr("cancel")}">×</button>
     <div class="field"><label>${tr("nameLabel")}</label><input id="name" type="text" value="${esc(defaultName)}"></div>
     <div class="field"><label>${tr("amountLabel")}</label><div class="amount-row"><button class="secondary small" type="button" id="decrementAmount">-</button><input id="amount" type="number" min="1" value="${esc(defaultAmount)}"><button class="secondary small" type="button" id="incrementAmount">+</button></div></div>
     <div class="field"><label>${tr("categoryLabel")}</label><input list="categoryOptions" id="category" type="text" value="${esc(defaultCategory)}"></div>
@@ -554,7 +590,7 @@ function newItemForm(barcode="", prefill: Partial<Record<string,string>> = {}, e
     <div class="field"><label>${tr("barcodeLabel")}</label><input id="barcode" type="text" value="${esc(defaultBarcode)}"></div>
     <div class="field"><label>${tr("notesLabel")}</label><textarea id="notes">${esc(defaultNotes)}</textarea></div>
     <div class="field"><label>${tr("recipesLabel")}</label><div class="recipes-list">${tr("noRecipes")}</div></div>
-    <div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button><button class="primary" id="save">${tr("create")}</button></div>`,async()=>{
+    <div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button><button class="primary" id="save">${editId ? tr("save") : tr("create")}</button></div>`,async()=>{
       const name=document.querySelector<HTMLInputElement>("#name")!.value.trim();
       if(!name)return;
       const categoryValue = document.querySelector<HTMLInputElement>("#category")!.value.trim();
@@ -591,7 +627,7 @@ function newItemForm(barcode="", prefill: Partial<Record<string,string>> = {}, e
       barcode: document.querySelector<HTMLInputElement>("#barcode")!.value,
       notes: document.querySelector<HTMLTextAreaElement>("#notes")!.value,
     };
-    await storageForm(undefined, async()=>{ await load(); newItemForm(barcode, state); });
+    await storageForm(undefined, async()=>{ await load(); newItemForm(barcode, state, editId); }, async()=>{ await load(); newItemForm(barcode, state, editId); });
   });
 }
 
