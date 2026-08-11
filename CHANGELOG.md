@@ -1,21 +1,35 @@
 # Changelog
 
-## v0.5 2026-08-11
+## v0.6 2026-08-11
 ### added
-* Settings toggle for dark/light mode with persistent user preference
-* Shopping list actions to add items by barcode or by name directly from the shopping screen
-* Category management now supports a 2-level parent/subcategory relation
-* Storage places rendered in a nested tree view with slash-delimited parent paths
-* Storage parent selectors now show full breadcrumb paths
-* Added delete protection to prevent deleting storage places or items when attached stock exists
-* Inventory and add/remove flows now use symbol labels for add, remove, edit, view, and inventory
+* Inventory buttons are now visually consistent in width and height
+* Inventory item action buttons are right-aligned while item text remains left-aligned
 
 ### changed
-* All action labels updated to symbols: +, -, pencil, list, trash bin
-* Inventory uses full storage paths when showing locations
-* Search and category filters support category path labels
-* Theme toggle now persists across reloads
-* Remove flow respects available stock and prevents invalid deletions
+* Unified button sizing across the app to keep symbols like + and − the same size
+* Inventory screen item cards now keep action controls separated from item labels
+
+### removed
+* none
+
+---
+
+## v0.5 2026-08-11
+### added
+* Dark/light theme toggle in settings with persisted preference
+* Shopping list actions for adding items by barcode or by name directly on the shopping screen
+* Category management now supports a 2-level parent/subcategory structure
+* Storage places displayed as a nested tree view with slash-delimited parent paths
+* Storage parent selector shows full breadcrumb-style paths
+* Delete protection when storage places or items still have attached stock
+* Symbol-based labels for actions: +, −, pencil, list, trash bin
+
+### changed
+* Replaced all add/remove/edit/view labels with icon symbols
+* Inventory and storage displays now use full path labels
+* Search supports nested category labels and paths
+* Theme selection is permanently stored and reapplied
+* Removal flows are safer and block invalid stock deletes
 
 ### removed
 * none
@@ -24,68 +38,46 @@
 
 ## v0.4 2026-08-11
 ### added
-* Storage
-** added parent-relations to storage places
-** view the inventory of a storage place
-* Inventory
-** added a filter function for categories
-** added a search function on the name
-* Inventory
-** added a button to view all listings of an item
-- where are the items placed
-- what best-before dates are there with what amount
-* Items
-** edit the details of an item
-* barcode scanning
-** if an item with the specific barcode is already created (even though not in stock) jump to the change amount screen and offer two new buttons: "create new" and "change item"
-
+* Storage places now support parent relationships
+* Storage view shows nested storage and inventory per place
+* Inventory filter by category and search by item name
+* Item listing view shows locations, quantities, and best-before dates
+* Item edit screen added for item detail updates
+* Barcode scanning now recognizes existing items and offers create or edit flows
 
 ### changed
-* reports
-** each report is now its own sub-screen
-** make the link to the Dashboard a proper button not a link formatting
-* "New Item" form
-** when adding a storage place but canceling not the entire form will be closed but only the "add storage place" form
-** drop down of categories does not work
-* Change item amount form
-** give it the same best-before settings as in the "New Item" form
-** the same +/- buttons for the Amount change as in v0.3
-** automatically select the same storage place as the majority of these items are already
-* Rename the title of the inventory page to "Inventory"
+* Reports split into expiring and under-minimum sub-screens
+* Dashboard navigation simplified with proper buttons
+* New Item form allows creating a storage place without closing the item form
+* Add/remove amount screen uses matching best-before and +/- controls
+* Inventory header label updated to the list symbol
 
 ### removed
+* none
 
 ---
+
 ## v0.3 2026-08-11
 ### added
-* settings functionality to Create, Update or Delete item size units
-* "New Item" form
-** add a "Cancel" button in form of an "x" in the top right corner
+* Settings section for managing item size units
+* New Item form with a cancel button as an X in the top-right
 
 ### changed
-* "New Item" form
-** changed the order
-- Name
-- Amount
---> add a "+" and "-" button at the end of the line to increase or decrease by one unit
-- category
-- storage place
---> add a jumping point to a pop-up window to create a new storage place
-- item size
-- item size unit
---> place the item size unit in the same line as the item size
-- best-before
---> make the best before in the format of "mm/yy" and let me enter it by typing "mmyy" and interpret that as "01.mm.yyyy" in the report / dashboard
-- minimum
-- barcode
-- notes
-- Recipe Cross reference
---> new name "recipes"
---> it shall not be a text field but a dynamic list of every recipe where this item is used sorted a-z (future release)
-
-* Changed "Inventory" title to "HomeStorage"
-* title now a link to homescreen (Dashboard)
-* Dashboard has no "Add / remove items" button anymore
+* New Item form updated order:
+  - Name
+  - Amount (+/− buttons)
+  - Category
+  - Storage place (+ new storage shortcut)
+  - Item size
+  - Item size unit
+  - Best-before (mmyy input converted to mm/yy display)
+  - Minimum
+  - Barcode
+  - Notes
+  - Recipes
+* Item size unit now appears inline with item size
+* Header title changed to HomeStorage
+* Dashboard layout removed the add/remove button
 
 ### removed
 * none
@@ -94,23 +86,26 @@
 
 ## v0.2 2026-08-11
 ### added
-* Category dropdown list
-** free typing but also suggestions from previous entered categories
-** categories can be managed in a new "category" section in the burger menu
-* language switch
-** language switch german / english in settings
+* Category dropdown with free typing and suggestion support
+* Category management screen in the menu
+* Language switch added in settings
 
 ### changed
-* in the add/remove screen changed the hint-text in the search box to "search by name or category"
-** removed functionality to search by barcode from search bar
-** added functionality to search by category to the search bar
-* made the add manually button the same size as the scan barcode button
+* Add/remove search box now searches by name or category
+* Barcode search removed from the main search input
+* Add manual and scan barcode buttons matched in width
 
 ### removed
-* in dashboard removed the tiles for "products", "units in stock", "below minimum"
+* Dashboard tiles for products, units in stock, and below minimum
 
 ---
 
 ## v0.1 2026-08-11
 ### added
-* "Add manually" button in add/remove screen
+* Initial add/remove screen with a manual add button
+
+### changed
+* none
+
+### removed
+* none

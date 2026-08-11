@@ -61,17 +61,17 @@ const translations: Record<Lang, Record<string, string>> = {
     scanBarcode: "Scan Barcode",
     homeStorageTitle: "HomeStorage",
     // recipes and unit management translations are defined later
-    addManual: "＋",
+    addManual: "Manual entry",
     noMatches: "No matching items.",
     storageTitle: "Storage",
     addStoragePlace: "Add storage place",
     parentLabel: "Parent",
-    viewListings: "≡",
+    viewListings: "📄",
     newItemTitle: "New Item",
     changeItemLabel: "Change item",
     createNewLabel: "Create new",
-    edit: "✎",
-    delete: "🗑",
+    edit: "✏️",
+    delete: "",
     reportsTitle: "Reports",
     expiringTitle: "Best-Before expiring",
     none: "None.",
@@ -111,7 +111,7 @@ const translations: Record<Lang, Record<string, string>> = {
     notesLabel: "Notes",
     recipeRefLabel: "Recipe Cross reference",
     noStoragePlaces: "No storage places.",
-    inventoryTitle: "≡",
+    inventoryTitle: "Inventory",
     allTitle: "All",
     noInventory: "No inventory.",
     noExpiry: "Nothing expiring within 7 days.",
@@ -127,7 +127,7 @@ const translations: Record<Lang, Record<string, string>> = {
     categoriesNav: "Categories",
     dashboardNav: "Dashboard",
     addremoveNav: "Add / Remove Items",
-    inventoryNav: "≡",
+    inventoryNav: "Inventory",
     storageNav: "Storage",
     reportsNav: "Reports",
     shoppingNav: "Shopping List",
@@ -196,7 +196,7 @@ const translations: Record<Lang, Record<string, string>> = {
     notesLabel: "Notizen",
     recipeRefLabel: "Rezept-Referenz",
     noStoragePlaces: "Keine Lagerplätze.",
-    inventoryTitle: "≡",
+    inventoryTitle: "Inventar",
     allTitle: "Alle",
     noInventory: "Kein Bestand.",
     noExpiry: "Keine Einträge laufen innerhalb von 7 Tagen ab.",
@@ -208,7 +208,7 @@ const translations: Record<Lang, Record<string, string>> = {
     categoriesNav: "Kategorien",
     dashboardNav: "Übersicht",
     addremoveNav: "Hinzufügen / Entfernen",
-    inventoryNav: "≡",
+    inventoryNav: "Inventar",
     storageNav: "Lager",
     reportsNav: "Berichte",
     shoppingNav: "Einkaufsliste",
@@ -397,7 +397,7 @@ function renderInventory(initialFilter?: string) {
         && (i.name.toLowerCase().includes(q) || itemCategoryLabel(i).toLowerCase().includes(q));
     }).map(i => {
       const rows = stock.filter(s=>s.itemId===i.id && (filter==="all" || s.storageId===filter));
-      return `<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${rows.map(s=>`${esc(storagePath(s.storageId))}: ${s.amount}${s.bestBefore ? ` · ${formatBestBefore(s.bestBefore)}`:""}`).join(" | ") || "No stock"} · ${esc(itemCategoryLabel(i))}</div></div><div class="row"><button class="secondary" data-listings="${i.id}">${tr("viewListings")}</button><button class="secondary" data-edit-item="${i.id}">${tr("edit")}</button><button class="danger-btn" data-delete-item="${i.id}">${tr("delete")}</button></div><span class="badge">${totalForItem(i.id)}</span></div>`;
+      return `<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${rows.map(s=>`${esc(storagePath(s.storageId))}: ${s.amount}${s.bestBefore ? ` · ${formatBestBefore(s.bestBefore)}`:""}`).join(" | ") || "No stock"} · ${esc(itemCategoryLabel(i))}</div></div><div class="row item-row"><button class="secondary" data-listings="${i.id}">${tr("viewListings")}</button><button class="secondary" data-edit-item="${i.id}">${tr("edit")}</button><button class="danger-btn" data-delete-item="${i.id}">${tr("delete")}</button></div><span class="badge">${totalForItem(i.id)}</span></div>`;
     }).join("");
     document.querySelector("#inventoryList")!.innerHTML = rows || `<div class="empty">${tr("noInventory")}</div>`;
     document.querySelectorAll<HTMLElement>("[data-listings]").forEach(b=>b.onclick=()=>showItemListings(b.dataset.listings!));
