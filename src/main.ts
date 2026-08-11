@@ -91,12 +91,13 @@ function stockRow(s: Stock) {
 
 function renderAddRemovePage() {
   layout(`
-    <section class="hero"><h2>Add / Remove Items</h2><p class="muted">Scan a barcode or search manually.</p>
-      <div class="row"><button class="primary" id="scan">Scan Barcode</button></div>
+    <section class="hero"><h2>Add / Remove Items</h2><p class="muted">Scan a barcode, add manually, or search manually.</p>
+      <div class="row"><button class="primary" id="scan">Scan Barcode</button><button class="secondary" id="addManual">Add manually</button></div>
     </section>
     <div class="search"><input id="manualSearch" placeholder="Search by name or barcode"></div>
     <div class="list" id="searchResults"></div>`);
   document.querySelector("#scan")?.addEventListener("click", openScanner);
+  document.querySelector("#addManual")?.addEventListener("click", () => newItemForm());
   const input = document.querySelector<HTMLInputElement>("#manualSearch")!;
   const update = () => {
     const q = input.value.toLowerCase();
