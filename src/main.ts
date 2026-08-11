@@ -231,6 +231,9 @@ const tr = (key: string, vars?: Record<string, string>) => {
   return text;
 };
 
+const appVersion = "v0.6 2026-08-11";
+const versionLabel = () => `(c) drakenxv ${appVersion}`;
+
 const setLanguage = (lang: Lang) => {
   currentLanguage = lang;
   localStorage.setItem("lang", lang);
@@ -480,6 +483,7 @@ function renderSettings() {
     <div class="card" style="margin-top:12px"><h3>${tr("languageTitle")}</h3><div class="field"><label>${tr("languageLabel")}</label><select id="languageSelect"><option value="en">${tr("english")}</option><option value="de">${tr("german")}</option></select></div></div>
     <div class="card" style="margin-top:12px"><h3>${tr("itemSizeUnitLabel")}</h3><button class="secondary" id="newUnit">${tr("addUnit")}</button><div class="list" style="margin-top:12px">${sizeUnits.map(u=>`<div class="item"><strong>${esc(u)}</strong><div class="row"><button class="secondary" data-edit-unit="${esc(u)}">${tr("edit")}</button><button class="danger-btn" data-delete-unit="${esc(u)}">${tr("delete")}</button></div></div>`).join("")}</div></div>
     <div class="card" style="margin-top:12px"><h3>${tr("csvTitle")}</h3><div class="row"><button class="secondary" id="export">${tr("exportCsv")}</button><label class="secondary">${tr("importCsv")}<input id="import" type="file" accept=".csv,text/csv" hidden></label></div><p class="small muted">${tr("importNote")}</p></div>
+    <div class="settings-footer">${versionLabel()}</div>
   </section>`);
   document.querySelector("#toggleTheme")?.addEventListener("click",()=>{ currentTheme = currentTheme === "dark" ? "light" : "dark"; applyTheme(); });
   const languageSelect = document.querySelector<HTMLSelectElement>("#languageSelect");
