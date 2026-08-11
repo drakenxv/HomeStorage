@@ -1,5 +1,7 @@
 import "./style.css";
-import { db, Item, Stock, Storage, Shopping } from "./db";
+import { db, Item, Stock, Storage, Shopping, Category } from "./db";
+
+type Lang = "en" | "de";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -7,7 +9,174 @@ let items: Item[] = [];
 let stock: Stock[] = [];
 let storage: Storage[] = [];
 let shopping: Shopping[] = [];
+let categories: Category[] = [];
 let currentView = "dashboard";
+let currentLanguage: Lang = (localStorage.getItem("lang") as Lang) || "en";
+
+const translations: Record<Lang, Record<string, string>> = {
+  en: {
+    appTitle: "Inventory",
+    dashboardTitle: "Expiry report",
+    dashboardDescription: "{count} stock entries expire within 7 days.",
+    addRemoveTitle: "Add / Remove Items",
+    addRemoveHint: "Scan a barcode, add manually, or search manually.",
+    searchPlaceholder: "Search by name or category",
+    scanBarcode: "Scan Barcode",
+    addManual: "Add manually",
+    noMatches: "No matching items.",
+    storageTitle: "Storage",
+    addStoragePlace: "Add storage place",
+    edit: "Edit",
+    delete: "Delete",
+    reportsTitle: "Reports",
+    expiringTitle: "Best-Before expiring",
+    none: "None.",
+    underMinimumTitle: "Under minimum",
+    shoppingListTitle: "Shopping List",
+    shoppingListEmpty: "Shopping list is empty.",
+    settingsTitle: "Settings",
+    appearanceTitle: "Appearance",
+    toggleTheme: "Toggle light/dark",
+    languageTitle: "Language",
+    languageLabel: "Language",
+    english: "English",
+    german: "Deutsch",
+    csvTitle: "CSV",
+    exportCsv: "Export CSV",
+    importCsv: "Import CSV",
+    importNote: "Import expects columns: name,amount,category,storage,itemSize,itemSizeUnit,minimum,bestBefore,barcode,notes,recipeRef.",
+    categoriesTitle: "Categories",
+    addCategory: "Add category",
+    categoryName: "Category name",
+    cancel: "Cancel",
+    save: "Save",
+    create: "Create",
+    add: "Add",
+    remove: "Remove",
+    nameLabel: "Name",
+    categoryLabel: "Category",
+    itemSizeLabel: "Item size",
+    minimumLabel: "Minimum",
+    barcodeLabel: "Barcode",
+    itemSizeUnitLabel: "Item size unit",
+    storagePlaceLabel: "Storage place",
+    amountLabel: "Amount",
+    bestBeforeLabel: "Best-Before",
+    notesLabel: "Notes",
+    recipeRefLabel: "Recipe Cross reference",
+    noStoragePlaces: "No storage places.",
+    inventoryTitle: "Inventory",
+    allTitle: "All",
+    noInventory: "No inventory.",
+    noExpiry: "Nothing expiring within 7 days.",
+    expiredLabel: "Expired",
+    noDate: "No date",
+    scanModalTitle: "Scan barcode",
+    scanModalHint: "Point the camera at a barcode. Chrome's BarcodeDetector is used when available.",
+    categoriesNav: "Categories",
+    dashboardNav: "Dashboard",
+    addremoveNav: "Add / Remove Items",
+    inventoryNav: "Inventory",
+    storageNav: "Storage",
+    reportsNav: "Reports",
+    shoppingNav: "Shopping List",
+    settingsNav: "Settings",
+    expiryReportLabel: "Expiry report",
+    storageLabel: "Storage",
+    productsLabel: "Products",
+    unitsInStockLabel: "Units in stock",
+    belowMinimumLabel: "Below minimum",
+  },
+  de: {
+    appTitle: "Inventar",
+    dashboardTitle: "Ablaufbericht",
+    dashboardDescription: "{count} Lager-Einträge laufen innerhalb von 7 Tagen ab.",
+    addRemoveTitle: "Hinzufügen / Entfernen",
+    addRemoveHint: "Barcode scannen, manuell hinzufügen oder suchen.",
+    searchPlaceholder: "Suche nach Name oder Kategorie",
+    scanBarcode: "Barcode scannen",
+    addManual: "Manuell hinzufügen",
+    noMatches: "Keine passenden Einträge.",
+    storageTitle: "Lager",
+    addStoragePlace: "Lagerplatz hinzufügen",
+    edit: "Bearbeiten",
+    delete: "Löschen",
+    reportsTitle: "Berichte",
+    expiringTitle: "Ablaufende Bestände",
+    none: "Keine.",
+    underMinimumTitle: "Unter Minimum",
+    shoppingListTitle: "Einkaufsliste",
+    shoppingListEmpty: "Einkaufsliste ist leer.",
+    settingsTitle: "Einstellungen",
+    appearanceTitle: "Darstellung",
+    toggleTheme: "Hell/Dunkel umschalten",
+    languageTitle: "Sprache",
+    languageLabel: "Sprache",
+    english: "Englisch",
+    german: "Deutsch",
+    csvTitle: "CSV",
+    exportCsv: "CSV exportieren",
+    importCsv: "CSV importieren",
+    importNote: "Import erwartet Spalten: name,amount,category,storage,itemSize,itemSizeUnit,minimum,bestBefore,barcode,notes,recipeRef.",
+    categoriesTitle: "Kategorien",
+    addCategory: "Kategorie hinzufügen",
+    categoryName: "Kategorie-Name",
+    cancel: "Abbrechen",
+    save: "Speichern",
+    create: "Erstellen",
+    add: "Hinzufügen",
+    remove: "Entfernen",
+    nameLabel: "Name",
+    categoryLabel: "Kategorie",
+    itemSizeLabel: "Größe",
+    minimumLabel: "Minimum",
+    barcodeLabel: "Barcode",
+    itemSizeUnitLabel: "Größeneinheit",
+    storagePlaceLabel: "Lagerplatz",
+    amountLabel: "Menge",
+    bestBeforeLabel: "Haltbar bis",
+    notesLabel: "Notizen",
+    recipeRefLabel: "Rezept-Referenz",
+    noStoragePlaces: "Keine Lagerplätze.",
+    inventoryTitle: "Bestand",
+    allTitle: "Alle",
+    noInventory: "Kein Bestand.",
+    noExpiry: "Keine Einträge laufen innerhalb von 7 Tagen ab.",
+    expiredLabel: "Abgelaufen",
+    noDate: "Kein Datum",
+    scanModalTitle: "Barcode scannen",
+    scanModalHint: "Richte die Kamera auf einen Barcode. Chrome verwendet den BarcodeDetector.",
+    categoriesNav: "Kategorien",
+    dashboardNav: "Übersicht",
+    addremoveNav: "Hinzufügen / Entfernen",
+    inventoryNav: "Bestand",
+    storageNav: "Lager",
+    reportsNav: "Berichte",
+    shoppingNav: "Einkaufsliste",
+    settingsNav: "Einstellungen",
+    expiryReportLabel: "Ablaufbericht",
+    storageLabel: "Lager",
+    productsLabel: "Produkte",
+    unitsInStockLabel: "Einheiten im Bestand",
+    belowMinimumLabel: "Unter Minimum",
+  },
+};
+
+const tr = (key: string, vars?: Record<string, string>) => {
+  let text = translations[currentLanguage][key] ?? key;
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) {
+      text = text.replace(`{${k}}`, v);
+    }
+  }
+  return text;
+};
+
+const setLanguage = (lang: Lang) => {
+  currentLanguage = lang;
+  localStorage.setItem("lang", lang);
+  render();
+};
 
 const uid = () => crypto.randomUUID();
 const esc = (value: string) => value.replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[c]!));
@@ -15,7 +184,7 @@ const today = () => new Date().toISOString().slice(0,10);
 const daysUntil = (date?: string) => date ? Math.ceil((new Date(date).getTime() - new Date(today()).getTime()) / 86400000) : Infinity;
 
 async function load() {
-  [items, stock, storage, shopping] = await Promise.all([db.items(), db.stock(), db.storage(), db.shopping()]);
+  [items, stock, storage, categories, shopping] = await Promise.all([db.items(), db.stock(), db.storage(), db.categories(), db.shopping()]);
   render();
 }
 
@@ -36,7 +205,7 @@ function layout(content: string) {
     <div class="app">
       <header class="topbar">
         <button class="icon-btn" id="menu">☰</button>
-        <h1>Inventory</h1>
+        <h1>${tr("appTitle")}</h1>
         <button class="icon-btn" id="quick">＋</button>
       </header>
       <main class="content">${content}</main>
@@ -53,28 +222,40 @@ function render() {
   else if (currentView === "reports") renderReports();
   else if (currentView === "shopping") renderShopping();
   else if (currentView === "settings") renderSettings();
+  else if (currentView === "categories") renderCategories();
   else if (currentView === "addremove") renderAddRemovePage();
+}
+
+function renderCategories() {
+  layout(`<section class="section"><h2>${tr("categoriesTitle")}</h2><button class="primary" id="newCategory">${tr("addCategory")}</button><div class="list" style="margin-top:12px">${categories.map(c=>`
+    <div class="item"><strong>${esc(c.name)}</strong><div class="row"><button class="secondary" data-edit-category="${c.id}">${tr("edit")}</button><button class="danger-btn" data-delete-category="${c.id}">${tr("delete")}</button></div></div>`).join("") || `<div class="empty">${tr("none")}</div>`}</div></section>`);
+  document.querySelector("#newCategory")?.addEventListener("click", () => categoryForm());
+  document.querySelectorAll<HTMLElement>("[data-edit-category]").forEach(b=>b.onclick=()=>categoryForm(b.dataset.editCategory));
+  document.querySelectorAll<HTMLElement>("[data-delete-category]").forEach(b=>b.onclick=async()=>{if(confirm(`${tr("delete")}?`)){await db.deleteCategory(b.dataset.deleteCategory!); await load();}});
+}
+
+function categoryForm(id?: string) {
+  const existing = categories.find(c=>c.id===id);
+  showModal(`<h2>${existing ? tr("edit") : tr("addCategory")}</h2><div class="field"><label>${tr("categoryName")}</label><input id="categoryName" value="${esc(existing?.name ?? "")}"></div>
+  <div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button><button class="primary" id="save">${tr("save")}</button></div>`, async()=>{
+    const name = document.querySelector<HTMLInputElement>("#categoryName")!.value.trim();
+    if(!name) return;
+    await db.putCategory({id: id ?? uid(), name});
+    await load();
+  });
 }
 
 function renderDashboard() {
   const expiring = stock.filter(s => daysUntil(s.bestBefore) <= 7).sort((a,b) => daysUntil(a.bestBefore)-daysUntil(b.bestBefore));
-  const under = items.filter(i => totalForItem(i.id) < i.minimum);
   layout(`
     <section class="hero">
-      <h2>Expiry report</h2>
-      <p class="muted">${expiring.length} stock entries expire within 7 days.</p>
-      <button class="primary" id="addRemove">Add / Remove Items</button>
+      <h2>${tr("dashboardTitle")}</h2>
+      <p class="muted">${tr("dashboardDescription", { count: String(expiring.length) })}</p>
+      <button class="primary" id="addRemove">${tr("addremoveNav")}</button>
     </section>
     <section class="section">
-      <div class="grid">
-        <div class="card"><h3>${items.length}</h3><div class="muted">Products</div></div>
-        <div class="card"><h3>${stock.reduce((n,s)=>n+s.amount,0)}</h3><div class="muted">Units in stock</div></div>
-        <div class="card"><h3>${under.length}</h3><div class="muted">Below minimum</div></div>
-      </div>
-    </section>
-    <section class="section">
-      <h2>Expiring soon</h2>
-      <div class="list">${expiring.length ? expiring.map(stockRow).join("") : `<div class="empty">Nothing expiring within 7 days.</div>`}</div>
+      <h2>${tr("expiringTitle")}</h2>
+      <div class="list">${expiring.length ? expiring.map(stockRow).join("") : `<div class="empty">${tr("noExpiry")}</div>`}</div>
     </section>`);
   document.querySelector("#addRemove")?.addEventListener("click", () => openAddRemove());
   bindStockActions();
@@ -91,20 +272,20 @@ function stockRow(s: Stock) {
 
 function renderAddRemovePage() {
   layout(`
-    <section class="hero"><h2>Add / Remove Items</h2><p class="muted">Scan a barcode, add manually, or search manually.</p>
-      <div class="row"><button class="primary" id="scan">Scan Barcode</button><button class="secondary" id="addManual">Add manually</button></div>
+    <section class="hero"><h2>${tr("addRemoveTitle")}</h2><p class="muted">${tr("addRemoveHint")}</p>
+      <div class="row equal-buttons"><button class="primary" id="scan">${tr("scanBarcode")}</button><button class="secondary" id="addManual">${tr("addManual")}</button></div>
     </section>
-    <div class="search"><input id="manualSearch" placeholder="Search by name or barcode"></div>
+    <div class="search"><input id="manualSearch" placeholder="${tr("searchPlaceholder")}"></div>
     <div class="list" id="searchResults"></div>`);
   document.querySelector("#scan")?.addEventListener("click", openScanner);
   document.querySelector("#addManual")?.addEventListener("click", () => newItemForm());
   const input = document.querySelector<HTMLInputElement>("#manualSearch")!;
   const update = () => {
     const q = input.value.toLowerCase();
-    const matches = items.filter(i => i.name.toLowerCase().includes(q) || i.barcode.includes(q));
+    const matches = items.filter(i => i.name.toLowerCase().includes(q) || i.category.toLowerCase().includes(q));
     document.querySelector("#searchResults")!.innerHTML = matches.map(i => `
-      <div class="item"><div><strong>${esc(i.name)}</strong><div class="small">Stock: ${totalForItem(i.id)} · ${esc(i.barcode)}</div></div>
-      <div class="row"><button class="secondary" data-add="${i.id}">Add</button><button class="secondary" data-remove="${i.id}">Remove</button></div></div>`).join("") || `<div class="empty">No matching items.</div>`;
+      <div class="item"><div><strong>${esc(i.name)}</strong><div class="small">Stock: ${totalForItem(i.id)} · ${esc(i.category)}</div></div>
+      <div class="row"><button class="secondary" data-add="${i.id}">${tr("add")}</button><button class="secondary" data-remove="${i.id}">${tr("remove")}</button></div></div>`).join("") || `<div class="empty">${tr("noMatches")}</div>`;
     document.querySelectorAll<HTMLElement>("[data-add]").forEach(b => b.onclick = () => adjustItem(b.dataset.add!, 1));
     document.querySelectorAll<HTMLElement>("[data-remove]").forEach(b => b.onclick = () => adjustItem(b.dataset.remove!, -1));
   };
@@ -149,18 +330,23 @@ function renderShopping() {
 }
 
 function renderSettings() {
-  layout(`<section class="section"><h2>Settings</h2><div class="card"><h3>Appearance</h3><button class="secondary" id="toggleTheme">Toggle light/dark</button></div>
-  <div class="card" style="margin-top:12px"><h3>CSV</h3><div class="row"><button class="secondary" id="export">Export CSV</button><label class="secondary">Import CSV<input id="import" type="file" accept=".csv,text/csv" hidden></label></div><p class="small muted">Import expects columns: name,amount,category,storage,itemSize,itemSizeUnit,minimum,bestBefore,barcode,notes,recipeRef.</p></div></section>`);
+  layout(`<section class="section"><h2>${tr("settingsTitle")}</h2>
+    <div class="card"><h3>${tr("appearanceTitle")}</h3><button class="secondary" id="toggleTheme">${tr("toggleTheme")}</button></div>
+    <div class="card" style="margin-top:12px"><h3>${tr("languageTitle")}</h3><div class="field"><label>${tr("languageLabel")}</label><select id="languageSelect"><option value="en">${tr("english")}</option><option value="de">${tr("german")}</option></select></div></div>
+    <div class="card" style="margin-top:12px"><h3>${tr("csvTitle")}</h3><div class="row"><button class="secondary" id="export">${tr("exportCsv")}</button><label class="secondary">${tr("importCsv")}<input id="import" type="file" accept=".csv,text/csv" hidden></label></div><p class="small muted">${tr("importNote")}</p></div>
+  </section>`);
   document.querySelector("#toggleTheme")?.addEventListener("click",()=>document.body.classList.toggle("dark"));
+  const languageSelect = document.querySelector<HTMLSelectElement>("#languageSelect");
+  if(languageSelect){languageSelect.value = currentLanguage; languageSelect.addEventListener("change",()=>setLanguage(languageSelect.value as Lang));}
   document.querySelector("#export")?.addEventListener("click",exportCsv);
   document.querySelector<HTMLInputElement>("#import")?.addEventListener("change", e=>importCsv((e.target as HTMLInputElement).files?.[0]));
 }
 
 function openMenu() {
   const overlay = document.querySelector("#overlay")!;
-  overlay.innerHTML = `<div class="drawer"><div class="drawer-panel"><h2>Navigation</h2>
+  overlay.innerHTML = `<div class="drawer"><div class="drawer-panel"><h2>${tr("appTitle")}</h2>
     ${[
-      ["dashboard","Dashboard"],["addremove","Add / Remove Items"],["inventory","Inventory"],["storage","Storage"],["reports","Reports"],["shopping","Shopping List"],["settings","Settings"]
+      ["dashboard",tr("dashboardNav")],["addremove",tr("addremoveNav")],["inventory",tr("inventoryNav")],["storage",tr("storageNav")],["reports",tr("reportsNav")],["shopping",tr("shoppingNav")],["categories",tr("categoriesNav")],["settings",tr("settingsNav")]
     ].map(([id,label])=>`<button data-nav="${id}">${label}</button>`).join("")}
     <hr><button disabled>Recipes — future release</button><button disabled>Wishlist — future release</button>
   </div></div>`;
@@ -258,18 +444,23 @@ function newItemForm(barcode=""){
   const options=storage.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("");
   showModal(`<h2>New item</h2>
     ${[
-      ["name","Name","text"],["category","Category","text"],["itemSize","Item size","number"],["minimum","Minimum","number"],["barcode","Barcode","text"]
-    ].map(([id,label,type])=>`<div class="field"><label>${label}</label><input id="${id}" type="${type}" value="${id==="barcode"?esc(barcode):""}"></div>`).join("")}
-    <div class="field"><label>Item size unit</label><select id="itemSizeUnit"><option>g</option><option>ml</option><option>amount</option></select></div>
-    <div class="field"><label>Storage place</label><select id="storage">${options}</select></div>
-    <div class="field"><label>Amount</label><input id="amount" type="number" min="1" value="1"></div>
-    <div class="field"><label>Best-Before</label><input id="bestBefore" type="date"></div>
-    <div class="field"><label>Notes</label><textarea id="notes"></textarea></div>
-    <div class="field"><label>Recipe Cross reference</label><input id="recipeRef"></div>
+      ["name",tr("nameLabel"),"text"],["category",tr("categoryLabel"),"text"],["itemSize",tr("itemSizeLabel"),"number"],["minimum",tr("minimumLabel"),"number"],["barcode",tr("barcodeLabel"),"text"]
+    ].map(([id,label,type])=>`<div class="field"><label>${label}</label><input ${id==="category"?`list="categoryOptions"`:``} id="${id}" type="${type}" value="${id==="barcode"?esc(barcode):""}"></div>`).join("")}
+    <datalist id="categoryOptions">${categories.map(c=>`<option value="${esc(c.name)}"></option>`).join("")}</datalist>
+    <div class="field"><label>${tr("itemSizeUnitLabel")}</label><select id="itemSizeUnit"><option>g</option><option>ml</option><option>amount</option></select></div>
+    <div class="field"><label>${tr("storagePlaceLabel")}</label><select id="storage">${options}</select></div>
+    <div class="field"><label>${tr("amountLabel")}</label><input id="amount" type="number" min="1" value="1"></div>
+    <div class="field"><label>${tr("bestBeforeLabel")}</label><input id="bestBefore" type="date"></div>
+    <div class="field"><label>${tr("notesLabel")}</label><textarea id="notes"></textarea></div>
+    <div class="field"><label>${tr("recipeRefLabel")}</label><input id="recipeRef"></div>
     <div class="actions"><button class="secondary" id="cancel">Cancel</button><button class="primary" id="save">Create</button></div>`,async()=>{
       const name=document.querySelector<HTMLInputElement>("#name")!.value.trim();
       if(!name)return;
-      const item:Item={id:uid(),name,category:document.querySelector<HTMLInputElement>("#category")!.value.trim(),itemSize:Number(document.querySelector<HTMLInputElement>("#itemSize")!.value)||0,itemSizeUnit:document.querySelector<HTMLSelectElement>("#itemSizeUnit")!.value as Item["itemSizeUnit"],barcode:document.querySelector<HTMLInputElement>("#barcode")!.value.trim(),notes:document.querySelector<HTMLTextAreaElement>("#notes")!.value,recipeRef:document.querySelector<HTMLInputElement>("#recipeRef")!.value,minimum:Number(document.querySelector<HTMLInputElement>("#minimum")!.value)||0};
+      const categoryValue = document.querySelector<HTMLInputElement>("#category")!.value.trim();
+      const item:Item={id:uid(),name,category:categoryValue,itemSize:Number(document.querySelector<HTMLInputElement>("#itemSize")!.value)||0,itemSizeUnit:document.querySelector<HTMLSelectElement>("#itemSizeUnit")!.value as Item["itemSizeUnit"],barcode:document.querySelector<HTMLInputElement>("#barcode")!.value.trim(),notes:document.querySelector<HTMLTextAreaElement>("#notes")!.value,recipeRef:document.querySelector<HTMLInputElement>("#recipeRef")!.value,minimum:Number(document.querySelector<HTMLInputElement>("#minimum")!.value)||0};
+      if(categoryValue && !categories.some(c=>c.name.toLowerCase()===categoryValue.toLowerCase())){
+        await db.putCategory({id:uid(),name:categoryValue});
+      }
       await db.putItem(item);
       const sid=document.querySelector<HTMLSelectElement>("#storage")?.value;
       const amount=Number(document.querySelector<HTMLInputElement>("#amount")!.value)||1;

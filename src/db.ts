@@ -23,6 +23,11 @@ export type Storage = {
   name: string;
 };
 
+export type Category = {
+  id: string;
+  name: string;
+};
+
 export type Shopping = {
   id: string;
   itemId?: string;
@@ -32,17 +37,18 @@ export type Shopping = {
 };
 
 const DB_NAME = "inventory-pwa";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      db.createObjectStore("items", { keyPath: "id" });
-      db.createObjectStore("stock", { keyPath: "id" });
-      db.createObjectStore("storage", { keyPath: "id" });
-      db.createObjectStore("shopping", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("items")) db.createObjectStore("items", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("stock")) db.createObjectStore("stock", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("storage")) db.createObjectStore("storage", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("shopping")) db.createObjectStore("shopping", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("categories")) db.createObjectStore("categories", { keyPath: "id" });
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -83,13 +89,16 @@ export const db = {
   items: () => all<Item>("items"),
   stock: () => all<Stock>("stock"),
   storage: () => all<Storage>("storage"),
+  categories: () => all<Category>("categories"),
   shopping: () => all<Shopping>("shopping"),
   putItem: (x: Item) => put("items", x),
   putStock: (x: Stock) => put("stock", x),
   putStorage: (x: Storage) => put("storage", x),
+  putCategory: (x: Category) => put("categories", x),
   putShopping: (x: Shopping) => put("shopping", x),
   deleteStorage: (id: string) => remove("storage", id),
   deleteItem: (id: string) => remove("items", id),
   deleteStock: (id: string) => remove("stock", id),
+  deleteCategory: (id: string) => remove("categories", id),
   deleteShopping: (id: string) => remove("shopping", id),
 };
