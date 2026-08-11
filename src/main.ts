@@ -10,18 +10,52 @@ let stock: Stock[] = [];
 let storage: Storage[] = [];
 let shopping: Shopping[] = [];
 let categories: Category[] = [];
+let sizeUnits: string[] = JSON.parse(localStorage.getItem("sizeUnits") || '["g","ml","amount"]');
 let currentView = "dashboard";
 let currentLanguage: Lang = (localStorage.getItem("lang") as Lang) || "en";
 
+const saveSizeUnits = () => localStorage.setItem("sizeUnits", JSON.stringify(sizeUnits));
+
+const parseBestBefore = (value: string): string | undefined => {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const digits = trimmed.replace(/\D/g, "");
+  if (/^\d{4}$/.test(digits)) {
+    const month = Number(digits.slice(0, 2));
+    const year = Number("20" + digits.slice(2));
+    if (month >= 1 && month <= 12) return `${year.toString().padStart(4, "0")}-${String(month).padStart(2, "0")}-01`;
+  }
+  if (/^\d{6}$/.test(digits)) {
+    const month = Number(digits.slice(0, 2));
+    const year = Number(digits.slice(2));
+    if (month >= 1 && month <= 12) return `${year.toString().padStart(4, "0")}-${String(month).padStart(2, "0")}-01`;
+  }
+  if (/^\d{8}$/.test(digits)) {
+    return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  return undefined;
+};
+
+const formatBestBefore = (value?: string) => {
+  if (!value) return tr("noDate");
+  const m = value.slice(5, 7);
+  const y = value.slice(0, 4).slice(2);
+  if (m && y) return `${m}/${y}`;
+  return value;
+};
+
 const translations: Record<Lang, Record<string, string>> = {
   en: {
-    appTitle: "Inventory",
+    appTitle: "HomeStorage",
     dashboardTitle: "Expiry report",
     dashboardDescription: "{count} stock entries expire within 7 days.",
     addRemoveTitle: "Add / Remove Items",
     addRemoveHint: "Scan a barcode, add manually, or search manually.",
     searchPlaceholder: "Search by name or category",
     scanBarcode: "Scan Barcode",
+    homeStorageTitle: "HomeStorage",
+    // recipes and unit management translations are defined later
     addManual: "Add manually",
     noMatches: "No matching items.",
     storageTitle: "Storage",
@@ -73,6 +107,11 @@ const translations: Record<Lang, Record<string, string>> = {
     noDate: "No date",
     scanModalTitle: "Scan barcode",
     scanModalHint: "Point the camera at a barcode. Chrome's BarcodeDetector is used when available.",
+    recipesLabel: "Recipes",
+    noRecipes: "No recipes yet.",
+    manageUnits: "Manage item size units",
+    addUnit: "Add unit",
+    unitNameLabel: "Unit name",
     categoriesNav: "Categories",
     dashboardNav: "Dashboard",
     addremoveNav: "Add / Remove Items",
@@ -88,7 +127,7 @@ const translations: Record<Lang, Record<string, string>> = {
     belowMinimumLabel: "Below minimum",
   },
   de: {
-    appTitle: "Inventar",
+    appTitle: "HomeStorage",
     dashboardTitle: "Ablaufbericht",
     dashboardDescription: "{count} Lager-Einträge laufen innerhalb von 7 Tagen ab.",
     addRemoveTitle: "Hinzufügen / Entfernen",
@@ -146,6 +185,7 @@ const translations: Record<Lang, Record<string, string>> = {
     noDate: "Kein Datum",
     scanModalTitle: "Barcode scannen",
     scanModalHint: "Richte die Kamera auf einen Barcode. Chrome verwendet den BarcodeDetector.",
+    // recipes and unit management translations are defined later
     categoriesNav: "Kategorien",
     dashboardNav: "Übersicht",
     addremoveNav: "Hinzufügen / Entfernen",
@@ -205,7 +245,7 @@ function layout(content: string) {
     <div class="app">
       <header class="topbar">
         <button class="icon-btn" id="menu">☰</button>
-        <h1>${tr("appTitle")}</h1>
+        <h1><a href="#" id="homeLink">${tr("appTitle")}</a></h1>
         <button class="icon-btn" id="quick">＋</button>
       </header>
       <main class="content">${content}</main>
@@ -213,6 +253,7 @@ function layout(content: string) {
     </div>`;
   document.querySelector("#menu")?.addEventListener("click", openMenu);
   document.querySelector("#quick")?.addEventListener("click", () => openAddRemove());
+  document.querySelector("#homeLink")?.addEventListener("click", e => { e.preventDefault(); currentView = "dashboard"; render(); });
 }
 
 function render() {
@@ -251,13 +292,11 @@ function renderDashboard() {
     <section class="hero">
       <h2>${tr("dashboardTitle")}</h2>
       <p class="muted">${tr("dashboardDescription", { count: String(expiring.length) })}</p>
-      <button class="primary" id="addRemove">${tr("addremoveNav")}</button>
     </section>
     <section class="section">
       <h2>${tr("expiringTitle")}</h2>
       <div class="list">${expiring.length ? expiring.map(stockRow).join("") : `<div class="empty">${tr("noExpiry")}</div>`}</div>
     </section>`);
-  document.querySelector("#addRemove")?.addEventListener("click", () => openAddRemove());
   bindStockActions();
 }
 
@@ -265,7 +304,7 @@ function stockRow(s: Stock) {
   const days = daysUntil(s.bestBefore);
   const cls = days < 0 ? "danger" : days <= 3 ? "warning" : "";
   return `<div class="item">
-    <div><strong>${esc(itemName(s.itemId))}</strong><div class="small">${esc(storageName(s.storageId))} · ${s.amount} · ${s.bestBefore ?? "No date"}</div></div>
+    <div><strong>${esc(itemName(s.itemId))}</strong><div class="small">${esc(storageName(s.storageId))} · ${s.amount} · ${formatBestBefore(s.bestBefore)}</div></div>
     <span class="badge ${cls}">${days === Infinity ? "No date" : days < 0 ? "Expired" : `${days}d`}</span>
   </div>`;
 }
@@ -293,11 +332,11 @@ function renderAddRemovePage() {
 }
 
 function renderInventory() {
-  layout(`<section class="section"><h2>Inventory</h2><div class="tabs"><button data-filter="all">All</button>${storage.map(s=>`<button data-filter="${s.id}">${esc(s.name)}</button>`).join("")}</div><div class="list" id="inventoryList"></div></section>`);
+  layout(`<section class="section"><h2>${tr("homeStorageTitle")}</h2><div class="tabs"><button data-filter="all">All</button>${storage.map(s=>`<button data-filter="${s.id}">${esc(s.name)}</button>`).join("")}</div><div class="list" id="inventoryList"></div></section>`);
   const renderList = (filter="all") => {
     const rows = items.filter(i => filter==="all" || stock.some(s=>s.itemId===i.id && s.storageId===filter)).map(i => {
       const rows = stock.filter(s=>s.itemId===i.id && (filter==="all" || s.storageId===filter));
-      return `<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${rows.map(s=>`${esc(storageName(s.storageId))}: ${s.amount}${s.bestBefore ? ` · ${s.bestBefore}`:""}`).join(" | ") || "No stock"}</div></div><span class="badge">${totalForItem(i.id)}</span></div>`;
+      return `<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${rows.map(s=>`${esc(storageName(s.storageId))}: ${s.amount}${s.bestBefore ? ` · ${formatBestBefore(s.bestBefore)}`:""}`).join(" | ") || "No stock"}</div></div><span class="badge">${totalForItem(i.id)}</span></div>`;
     }).join("");
     document.querySelector("#inventoryList")!.innerHTML = rows || `<div class="empty">No inventory.</div>`;
   };
@@ -333,18 +372,22 @@ function renderSettings() {
   layout(`<section class="section"><h2>${tr("settingsTitle")}</h2>
     <div class="card"><h3>${tr("appearanceTitle")}</h3><button class="secondary" id="toggleTheme">${tr("toggleTheme")}</button></div>
     <div class="card" style="margin-top:12px"><h3>${tr("languageTitle")}</h3><div class="field"><label>${tr("languageLabel")}</label><select id="languageSelect"><option value="en">${tr("english")}</option><option value="de">${tr("german")}</option></select></div></div>
+    <div class="card" style="margin-top:12px"><h3>${tr("itemSizeUnitLabel")}</h3><button class="secondary" id="newUnit">${tr("addUnit")}</button><div class="list" style="margin-top:12px">${sizeUnits.map(u=>`<div class="item"><strong>${esc(u)}</strong><div class="row"><button class="secondary" data-edit-unit="${esc(u)}">${tr("edit")}</button><button class="danger-btn" data-delete-unit="${esc(u)}">${tr("delete")}</button></div></div>`).join("")}</div></div>
     <div class="card" style="margin-top:12px"><h3>${tr("csvTitle")}</h3><div class="row"><button class="secondary" id="export">${tr("exportCsv")}</button><label class="secondary">${tr("importCsv")}<input id="import" type="file" accept=".csv,text/csv" hidden></label></div><p class="small muted">${tr("importNote")}</p></div>
   </section>`);
   document.querySelector("#toggleTheme")?.addEventListener("click",()=>document.body.classList.toggle("dark"));
   const languageSelect = document.querySelector<HTMLSelectElement>("#languageSelect");
   if(languageSelect){languageSelect.value = currentLanguage; languageSelect.addEventListener("change",()=>setLanguage(languageSelect.value as Lang));}
+  document.querySelector("#newUnit")?.addEventListener("click",()=>unitForm());
+  document.querySelectorAll<HTMLElement>("[data-edit-unit]").forEach(b=>b.onclick=()=>unitForm(b.dataset.editUnit));
+  document.querySelectorAll<HTMLElement>("[data-delete-unit]").forEach(b=>b.onclick=async()=>{if(confirm(`${tr("delete")}?`)){sizeUnits = sizeUnits.filter(u=>u!==b.dataset.deleteUnit); saveSizeUnits(); renderSettings();}});
   document.querySelector("#export")?.addEventListener("click",exportCsv);
   document.querySelector<HTMLInputElement>("#import")?.addEventListener("change", e=>importCsv((e.target as HTMLInputElement).files?.[0]));
 }
 
 function openMenu() {
   const overlay = document.querySelector("#overlay")!;
-  overlay.innerHTML = `<div class="drawer"><div class="drawer-panel"><h2>${tr("appTitle")}</h2>
+  overlay.innerHTML = `<div class="drawer"><div class="drawer-panel"><h2>${tr("homeStorageTitle")}</h2>
     ${[
       ["dashboard",tr("dashboardNav")],["addremove",tr("addremoveNav")],["inventory",tr("inventoryNav")],["storage",tr("storageNav")],["reports",tr("reportsNav")],["shopping",tr("shoppingNav")],["categories",tr("categoriesNav")],["settings",tr("settingsNav")]
     ].map(([id,label])=>`<button data-nav="${id}">${label}</button>`).join("")}
@@ -358,13 +401,15 @@ function openAddRemove() {
   currentView="addremove"; renderAddRemovePage();
 }
 
-function storageForm(id?: string) {
+function storageForm(id?: string, onComplete?: ()=>Promise<void>) {
   const existing = storage.find(s=>s.id===id);
-  showModal(`<h2>${existing?"Edit":"Add"} storage place</h2><div class="field"><label>Name</label><input id="storageName" value="${esc(existing?.name??"")}"></div>
-  <div class="actions"><button class="secondary" id="cancel">Cancel</button><button class="primary" id="save">Save</button></div>`, async()=>{
+  showModal(`<h2>${existing?"Edit":"Add"} storage place</h2><button class="icon-btn close-button" id="closeX" aria-label="${tr("cancel")}">×</button><div class="field"><label>${tr("nameLabel")}</label><input id="storageName" value="${esc(existing?.name??"")}"></div>
+  <div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button><button class="primary" id="save">${tr("save")}</button></div>`, async()=>{
     const name=document.querySelector<HTMLInputElement>("#storageName")!.value.trim();
     if(!name)return;
-    await db.putStorage({id:id??uid(),name}); await load();
+    await db.putStorage({id:id??uid(),name});
+    await load();
+    if(onComplete) await onComplete();
   });
 }
 
@@ -372,7 +417,22 @@ function showModal(html:string,onSave?:()=>Promise<void>) {
   const overlay=document.querySelector("#overlay")!;
   overlay.innerHTML=`<div class="modal"><div class="modal-box">${html}</div></div>`;
   overlay.querySelector("#cancel")?.addEventListener("click",()=>overlay.innerHTML="");
+  overlay.querySelector("#closeX")?.addEventListener("click",()=>overlay.innerHTML="");
   overlay.querySelector("#save")?.addEventListener("click",async()=>{await onSave?.();overlay.innerHTML="";});
+}
+
+function unitForm(name?: string) {
+  const existing = name ?? "";
+  showModal(`<h2>${existing ? tr("edit") : tr("addUnit")}</h2><button class="icon-btn close-button" id="closeX" aria-label="${tr("cancel")}">×</button><div class="field"><label>${tr("unitNameLabel")}</label><input id="unitName" value="${esc(existing)}"></div>
+    <div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button><button class="primary" id="save">${tr("save")}</button></div>`, async()=>{
+    const value = document.querySelector<HTMLInputElement>("#unitName")!.value.trim();
+    if(!value) return;
+    const existingIndex = sizeUnits.findIndex(u=>u===existing);
+    if(existingIndex >= 0) sizeUnits[existingIndex] = value;
+    else if(!sizeUnits.includes(value)) sizeUnits.push(value);
+    saveSizeUnits();
+    renderSettings();
+  });
 }
 
 async function adjustItem(itemId:string, delta:number) {
@@ -440,34 +500,72 @@ function handleBarcode(barcode:string){
   else newItemForm(barcode);
 }
 
-function newItemForm(barcode=""){
-  const options=storage.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("");
-  showModal(`<h2>New item</h2>
-    ${[
-      ["name",tr("nameLabel"),"text"],["category",tr("categoryLabel"),"text"],["itemSize",tr("itemSizeLabel"),"number"],["minimum",tr("minimumLabel"),"number"],["barcode",tr("barcodeLabel"),"text"]
-    ].map(([id,label,type])=>`<div class="field"><label>${label}</label><input ${id==="category"?`list="categoryOptions"`:``} id="${id}" type="${type}" value="${id==="barcode"?esc(barcode):""}"></div>`).join("")}
+function newItemForm(barcode="", prefill: Partial<Record<string,string>> = {}){
+  const options=storage.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("");
+  const unitOptions=sizeUnits.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("");
+  const defaultAmount = prefill.amount || "1";
+  const defaultCategory = prefill.category || "";
+  const defaultItemSize = prefill.itemSize || "";
+  const defaultItemSizeUnit = prefill.itemSizeUnit || sizeUnits[0] || "amount";
+  const defaultMinimum = prefill.minimum || "0";
+  const defaultBarcode = barcode || prefill.barcode || "";
+  const defaultBestBefore = prefill.bestBefore || "";
+  const defaultNotes = prefill.notes || "";
+  const defaultName = prefill.name || "";
+  const defaultStorage = prefill.storage || (storage[0]?.id ?? "");
+  const storageOptions = storage.map(s => `<option value="${esc(s.id)}"${s.id===defaultStorage ? " selected" : ""}>${esc(s.name)}</option>`).join("");
+  const unitOptionsWithSelected = sizeUnits.map(u=>`<option value="${esc(u)}"${u===defaultItemSizeUnit ? " selected" : ""}>${esc(u)}</option>`).join("");
+  showModal(`<h2>New item</h2><button class="icon-btn close-button" id="closeX" aria-label="${tr("cancel")}">×</button>
+    <div class="field"><label>${tr("nameLabel")}</label><input id="name" type="text" value="${esc(defaultName)}"></div>
+    <div class="field"><label>${tr("amountLabel")}</label><div class="amount-row"><button class="secondary small" type="button" id="decrementAmount">-</button><input id="amount" type="number" min="1" value="${esc(defaultAmount)}"><button class="secondary small" type="button" id="incrementAmount">+</button></div></div>
+    <div class="field"><label>${tr("categoryLabel")}</label><input list="categoryOptions" id="category" type="text" value="${esc(defaultCategory)}"></div>
     <datalist id="categoryOptions">${categories.map(c=>`<option value="${esc(c.name)}"></option>`).join("")}</datalist>
-    <div class="field"><label>${tr("itemSizeUnitLabel")}</label><select id="itemSizeUnit"><option>g</option><option>ml</option><option>amount</option></select></div>
-    <div class="field"><label>${tr("storagePlaceLabel")}</label><select id="storage">${options}</select></div>
-    <div class="field"><label>${tr("amountLabel")}</label><input id="amount" type="number" min="1" value="1"></div>
-    <div class="field"><label>${tr("bestBeforeLabel")}</label><input id="bestBefore" type="date"></div>
-    <div class="field"><label>${tr("notesLabel")}</label><textarea id="notes"></textarea></div>
-    <div class="field"><label>${tr("recipeRefLabel")}</label><input id="recipeRef"></div>
-    <div class="actions"><button class="secondary" id="cancel">Cancel</button><button class="primary" id="save">Create</button></div>`,async()=>{
+    <div class="field"><label>${tr("storagePlaceLabel")}</label><div class="field-row"><select id="storage">${storageOptions}</select><button class="secondary" type="button" id="newStorageFromItem">+ ${tr("addStoragePlace")}</button></div></div>
+    <div class="field"><label>${tr("itemSizeLabel")}</label><div class="field-row"><input id="itemSize" type="number" min="0" step="any" value="${esc(defaultItemSize)}"><select id="itemSizeUnit">${unitOptionsWithSelected}</select></div></div>
+    <div class="field"><label>${tr("bestBeforeLabel")}</label><input id="bestBefore" type="text" placeholder="mmyy" value="${esc(defaultBestBefore)}"></div>
+    <div class="field"><label>${tr("minimumLabel")}</label><input id="minimum" type="number" min="0" value="${esc(defaultMinimum)}"></div>
+    <div class="field"><label>${tr("barcodeLabel")}</label><input id="barcode" type="text" value="${esc(defaultBarcode)}"></div>
+    <div class="field"><label>${tr("notesLabel")}</label><textarea id="notes">${esc(defaultNotes)}</textarea></div>
+    <div class="field"><label>${tr("recipesLabel")}</label><div class="recipes-list">${tr("noRecipes")}</div></div>
+    <div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button><button class="primary" id="save">${tr("create")}</button></div>`,async()=>{
       const name=document.querySelector<HTMLInputElement>("#name")!.value.trim();
       if(!name)return;
       const categoryValue = document.querySelector<HTMLInputElement>("#category")!.value.trim();
-      const item:Item={id:uid(),name,category:categoryValue,itemSize:Number(document.querySelector<HTMLInputElement>("#itemSize")!.value)||0,itemSizeUnit:document.querySelector<HTMLSelectElement>("#itemSizeUnit")!.value as Item["itemSizeUnit"],barcode:document.querySelector<HTMLInputElement>("#barcode")!.value.trim(),notes:document.querySelector<HTMLTextAreaElement>("#notes")!.value,recipeRef:document.querySelector<HTMLInputElement>("#recipeRef")!.value,minimum:Number(document.querySelector<HTMLInputElement>("#minimum")!.value)||0};
+      const bestBeforeValue = parseBestBefore(document.querySelector<HTMLInputElement>("#bestBefore")!.value);
+      const item:Item={id:uid(),name,category:categoryValue,itemSize:Number(document.querySelector<HTMLInputElement>("#itemSize")!.value)||0,itemSizeUnit:document.querySelector<HTMLSelectElement>("#itemSizeUnit")!.value as Item["itemSizeUnit"],barcode:document.querySelector<HTMLInputElement>("#barcode")!.value.trim(),notes:document.querySelector<HTMLTextAreaElement>("#notes")!.value,recipeRef:"",minimum:Number(document.querySelector<HTMLInputElement>("#minimum")!.value)||0};
       if(categoryValue && !categories.some(c=>c.name.toLowerCase()===categoryValue.toLowerCase())){
         await db.putCategory({id:uid(),name:categoryValue});
       }
       await db.putItem(item);
-      const sid=document.querySelector<HTMLSelectElement>("#storage")?.value;
+      const sid=document.querySelector<HTMLSelectElement>("#storage")?.value || defaultStorage;
       const amount=Number(document.querySelector<HTMLInputElement>("#amount")!.value)||1;
-      const bb=document.querySelector<HTMLInputElement>("#bestBefore")!.value||undefined;
-      if(sid)await db.putStock({id:uid(),itemId:item.id,storageId:sid,amount,bestBefore:bb});
+      if(sid)await db.putStock({id:uid(),itemId:item.id,storageId:sid,amount,bestBefore:bestBeforeValue});
       await load();
     });
+  document.querySelector<HTMLButtonElement>("#incrementAmount")?.addEventListener("click",()=>{
+    const amt = document.querySelector<HTMLInputElement>("#amount")!;
+    amt.value = String((Number(amt.value)||0) + 1);
+  });
+  document.querySelector<HTMLButtonElement>("#decrementAmount")?.addEventListener("click",()=>{
+    const amt = document.querySelector<HTMLInputElement>("#amount")!;
+    const value = Math.max(1, (Number(amt.value)||1) - 1);
+    amt.value = String(value);
+  });
+  document.querySelector<HTMLButtonElement>("#newStorageFromItem")?.addEventListener("click",async()=>{
+    const state: Partial<Record<string,string>> = {
+      name: document.querySelector<HTMLInputElement>("#name")!.value,
+      amount: document.querySelector<HTMLInputElement>("#amount")!.value,
+      category: document.querySelector<HTMLInputElement>("#category")!.value,
+      storage: document.querySelector<HTMLSelectElement>("#storage")!.value,
+      itemSize: document.querySelector<HTMLInputElement>("#itemSize")!.value,
+      itemSizeUnit: document.querySelector<HTMLSelectElement>("#itemSizeUnit")!.value,
+      bestBefore: document.querySelector<HTMLInputElement>("#bestBefore")!.value,
+      minimum: document.querySelector<HTMLInputElement>("#minimum")!.value,
+      barcode: document.querySelector<HTMLInputElement>("#barcode")!.value,
+      notes: document.querySelector<HTMLTextAreaElement>("#notes")!.value,
+    };
+    await storageForm(undefined, async()=>{ await load(); newItemForm(barcode, state); });
+  });
 }
 
 function bindStockActions(){}
