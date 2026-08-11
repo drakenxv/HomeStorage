@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.7 2026-08-11
+### added
+* Checked-off shopping items now appear in a separate section on the shopping screen
+* Barcode scanner support enabled for shopping add-by-barcode flow
+* Inventory storage filter changed from tabs to a dropdown selector
+* Item form category selection now uses an existing category dropdown with a new-category popup option
+* Burger menu contains left-aligned navigation and version text `(c) drakenvx - v0.7 2026-08-11`
+
+### changed
+* Menu version footer and drawer buttons are left-aligned for consistent UX
+* Delete actions use a wastebin icon consistently across the app
+* Button sizing is normalized across screens for consistent height and spacing
+* Inventory filtering now combines category, storage, and text search controls
+
+### removed
+* Duplicate version constants and stray patch markers from source code
+
+---
+
 ## v0.6 2026-08-11
 ### added
 * Inventory buttons are now visually consistent in width and height

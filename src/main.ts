@@ -21,6 +21,11 @@ const applyTheme = () => {
   localStorage.setItem("theme", currentTheme);
 };
 
+const appVersion = "v0.7 2026-08-11";
+const versionLabel = () => `(c) drakenvx - ${appVersion}`;
+
+let barcodeScanHandler: ((barcode: string) => Promise<void>) | null = null;
+
 const parseBestBefore = (value: string): string | undefined => {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
@@ -71,7 +76,7 @@ const translations: Record<Lang, Record<string, string>> = {
     changeItemLabel: "Change item",
     createNewLabel: "Create new",
     edit: "✏️",
-    delete: "",
+    delete: "🗑",
     reportsTitle: "Reports",
     expiringTitle: "Best-Before expiring",
     none: "None.",
@@ -99,6 +104,7 @@ const translations: Record<Lang, Record<string, string>> = {
     create: "Create",
     add: "＋",
     remove: "−",
+    checkedItemsTitle: "Checked items",
     nameLabel: "Name",
     categoryLabel: "Category",
     itemSizeLabel: "Item size",
@@ -156,7 +162,7 @@ const translations: Record<Lang, Record<string, string>> = {
     changeItemLabel: "Artikel ändern",
     createNewLabel: "Neu erstellen",
     edit: "Bearbeiten",
-    delete: "Löschen",
+    delete: "🗑",
     reportsTitle: "Berichte",
     expiringTitle: "Ablaufende Bestände",
     none: "Keine.",
@@ -172,6 +178,7 @@ const translations: Record<Lang, Record<string, string>> = {
     languageLabel: "Sprache",
     english: "Englisch",
     german: "Deutsch",
+    checkedItemsTitle: "Abgehakte Artikel",
     csvTitle: "CSV",
     exportCsv: "CSV exportieren",
     importCsv: "CSV importieren",
@@ -230,9 +237,6 @@ const tr = (key: string, vars?: Record<string, string>) => {
   }
   return text;
 };
-
-const appVersion = "v0.6 2026-08-11";
-const versionLabel = () => `(c) drakenxv ${appVersion}`;
 
 const setLanguage = (lang: Lang) => {
   currentLanguage = lang;
@@ -316,15 +320,7 @@ function render() {
   else if (currentView === "addremove") renderAddRemovePage();
 }
 
-function renderCategories() {
-  layout(`<section class="section"><h2>${tr("categoriesTitle")}</h2><button class="primary" id="newCategory">${tr("addCategory")}</button><div class="list" style="margin-top:12px">${categories.map(c=>`
-    <div class="item"><strong>${esc(categoryPath(c.id))}</strong><div class="row"><button class="secondary" data-edit-category="${c.id}">${tr("edit")}</button><button class="danger-btn" data-delete-category="${c.id}">${tr("delete")}</button></div></div>`).join("") || `<div class="empty">${tr("none")}</div>`}</div></section>`);
-  document.querySelector("#newCategory")?.addEventListener("click", () => categoryForm());
-  document.querySelectorAll<HTMLElement>("[data-edit-category]").forEach(b=>b.onclick=()=>categoryForm(b.dataset.editCategory));
-  document.querySelectorAll<HTMLElement>("[data-delete-category]").forEach(b=>b.onclick=async()=>{if(confirm(`${tr("delete")}?`)){await db.deleteCategory(b.dataset.deleteCategory!); await load();}});
-}
-
-function categoryForm(id?: string) {
+function categoryForm(id?: string, onComplete?: ()=>Promise<void>, onCancel?: ()=>Promise<void>) {
   const existing = categories.find(c=>c.id===id);
   const parentOptions = `<option value="">—</option>` + categories.filter(c=>c.id!==id).map(c=>`<option value="${esc(c.id)}" ${c.id===existing?.parentId?`selected`:``}>${esc(categoryPath(c.id))}</option>`).join("");
   showModal(`<h2>${existing ? tr("edit") : tr("addCategory")}</h2><div class="field"><label>${tr("categoryName")}</label><input id="categoryName" value="${esc(existing?.name ?? "")}"></div>
@@ -335,7 +331,8 @@ function categoryForm(id?: string) {
     if(!name) return;
     await db.putCategory({id: id ?? uid(), name, parentId: parent});
     await load();
-  });
+    if(onComplete) await onComplete();
+  }, onCancel);
 }
 
 function renderDashboard() {
@@ -385,27 +382,29 @@ function renderAddRemovePage() {
 
 function renderInventory(initialFilter?: string) {
   const categoryOptions = categories.map(c=>`<option value="${esc(c.id)}">${esc(categoryPath(c.id))}</option>`).join("");
+  const storageOptions = storage.map(s=>`<option value="${esc(s.id)}">${esc(storagePath(s.id))}</option>`).join("");
   layout(`<section class="section"><h2>${tr("inventoryTitle")}</h2>
-    <div class="row"><select id="categoryFilter"><option value="all">${tr("allTitle")}</option>${categoryOptions}</select>
+    <div class="row inventory-filters"><select id="categoryFilter"><option value="all">${tr("allTitle")}</option>${categoryOptions}</select>
+    <select id="storageFilter"><option value="all">${tr("allTitle")}</option>${storageOptions}</select>
     <input id="inventorySearch" placeholder="${tr("searchPlaceholder")}"></div>
-    <div class="tabs"><button data-filter="all">All</button>${storage.map(s=>`<button data-filter="${s.id}">${esc(storagePath(s.id))}</button>`).join("")}</div>
     <div class="list" id="inventoryList"></div></section>`);
-  const renderList = (filter="all") => {
+  const renderList = () => {
     const q = (document.querySelector<HTMLInputElement>("#inventorySearch")?.value || "").toLowerCase();
     const cat = document.querySelector<HTMLSelectElement>("#categoryFilter")!.value;
+    const storageFilter = document.querySelector<HTMLSelectElement>("#storageFilter")!.value;
     const rows = items.filter(i => {
       const categoryId = getCategoryId(i.category);
-      return (filter==="all" || stock.some(s=>s.itemId===i.id && s.storageId===filter))
+      return (storageFilter==="all" || stock.some(s=>s.itemId===i.id && s.storageId===storageFilter))
         && (cat==="all" || categoryId === cat)
         && (i.name.toLowerCase().includes(q) || itemCategoryLabel(i).toLowerCase().includes(q));
     }).map(i => {
-      const rows = stock.filter(s=>s.itemId===i.id && (filter==="all" || s.storageId===filter));
+      const rows = stock.filter(s=>s.itemId===i.id && (storageFilter==="all" || s.storageId===storageFilter));
       return `<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${rows.map(s=>`${esc(storagePath(s.storageId))}: ${s.amount}${s.bestBefore ? ` · ${formatBestBefore(s.bestBefore)}`:""}`).join(" | ") || "No stock"} · ${esc(itemCategoryLabel(i))}</div></div><div class="row item-row"><button class="secondary" data-listings="${i.id}">${tr("viewListings")}</button><button class="secondary" data-edit-item="${i.id}">${tr("edit")}</button><button class="danger-btn" data-delete-item="${i.id}">${tr("delete")}</button></div><span class="badge">${totalForItem(i.id)}</span></div>`;
     }).join("");
     document.querySelector("#inventoryList")!.innerHTML = rows || `<div class="empty">${tr("noInventory")}</div>`;
     document.querySelectorAll<HTMLElement>("[data-listings]").forEach(b=>b.onclick=()=>showItemListings(b.dataset.listings!));
     document.querySelectorAll<HTMLElement>("[data-edit-item]").forEach(b=>b.onclick=()=>{
-      const id = b.dataset.editItem!; const it = items.find(x=>x.id===id)!; newItemForm("",{name:it.name,category:getCategoryLabel(it.category),itemSize:String(it.itemSize),itemSizeUnit:it.itemSizeUnit,minimum:String(it.minimum),barcode:it.barcode,notes:it.notes,storage:storage.find(s=>stock.filter(x=>x.itemId===id&&x.storageId===s.id).reduce((sum,x)=>sum+x.amount,0) > 0 ? s.id : "")}, id);
+      const id = b.dataset.editItem!; const it = items.find(x=>x.id===id)!; newItemForm("",{name:it.name,category:it.category,itemSize:String(it.itemSize),itemSizeUnit:it.itemSizeUnit,minimum:String(it.minimum),barcode:it.barcode,notes:it.notes,storage:storage.find(s=>stock.filter(x=>x.itemId===id&&x.storageId===s.id).reduce((sum,x)=>sum+x.amount,0) > 0 ? s.id : "")}, id);
     });
     document.querySelectorAll<HTMLElement>("[data-delete-item]").forEach(b=>b.onclick=async()=>{
       const id = b.dataset.deleteItem!;
@@ -413,27 +412,10 @@ function renderInventory(initialFilter?: string) {
       if (confirm(`${tr("delete")}?`)) { await db.deleteItem(id); await load(); }
     });
   };
-  document.querySelectorAll<HTMLButtonElement>("[data-filter]").forEach(b => b.onclick=()=>renderList(b.dataset.filter));
-  document.querySelector<HTMLInputElement>("#inventorySearch")?.addEventListener("input",()=>renderList(initialFilter||"all"));
-  document.querySelector<HTMLSelectElement>("#categoryFilter")?.addEventListener("change",()=>renderList(initialFilter||"all"));
-  renderList(initialFilter||"all");
-}
-
-function renderStorage() {
-  const buildTree = (parentId?: string, level = 0) => {
-    return storage.filter(s => s.parentId === parentId).map(s => `
-      <div class="tree-item" style="margin-left:${level * 18}px"><div class="item"><div><strong>${esc(s.name)}</strong><div class="small">${esc(storagePath(s.id))}</div></div><div class="row"><button class="secondary" data-view="${s.id}">${tr("inventoryTitle")}</button><button class="secondary" data-edit="${s.id}">${tr("edit")}</button><button class="danger-btn" data-delete="${s.id}">${tr("delete")}</button></div></div></div>${buildTree(s.id, level + 1).join("")}`);
-  };
-  const treeHtml = buildTree().join("") || `<div class="empty">${tr("noStoragePlaces")}</div>`;
-  layout(`<section class="section"><h2>${tr("storageTitle")}</h2><button class="primary" id="newStorage">${tr("addStoragePlace")}</button><div class="list" style="margin-top:12px">${treeHtml}</div></section>`);
-  document.querySelector("#newStorage")?.addEventListener("click",()=>storageForm());
-  document.querySelectorAll<HTMLElement>("[data-view]").forEach(b=>b.onclick=()=>{currentView="inventory"; renderInventory(b.dataset.view);});
-  document.querySelectorAll<HTMLElement>("[data-edit]").forEach(b=>b.onclick=()=>storageForm(b.dataset.edit));
-  document.querySelectorAll<HTMLElement>("[data-delete]").forEach(b=>b.onclick=async()=>{
-    const id = b.dataset.delete!;
-    if (stock.some(s => s.storageId === id)) {alert("Cannot delete storage place while it has stock."); return;}
-    if(confirm(`${tr("delete")}?`)){await db.deleteStorage(id); await load();}
-  });
+  document.querySelector<HTMLInputElement>("#inventorySearch")?.addEventListener("input",()=>renderList());
+  document.querySelector<HTMLSelectElement>("#categoryFilter")?.addEventListener("change",()=>renderList());
+  document.querySelector<HTMLSelectElement>("#storageFilter")?.addEventListener("change",()=>renderList());
+  renderList();
 }
 
 function renderReports(section: "expiring" | "under" = "expiring") {
@@ -448,7 +430,11 @@ function renderReports(section: "expiring" | "under" = "expiring") {
 }
 
 function renderShopping() {
-  layout(`<section class="section"><h2>${tr("shoppingListTitle")}</h2><div class="row equal-buttons"><button class="primary" id="addShoppingBarcode">${tr("addByBarcode")}</button><button class="secondary" id="addShoppingName">${tr("addByName")}</button></div><div class="list">${shopping.map(s=>`<div class="item"><label><input type="checkbox" data-check="${s.id}" ${s.checked?"checked":""}> ${esc(s.name)} × ${s.amount}</label><button class="danger-btn" data-shop-delete="${s.id}">${tr("delete")}</button></div>`).join("") || `<div class="empty">${tr("shoppingListEmpty")}</div>`}</div></section>`);
+  const unchecked = shopping.filter(s => !s.checked);
+  const checked = shopping.filter(s => s.checked);
+  layout(`<section class="section"><h2>${tr("shoppingListTitle")}</h2><div class="row equal-buttons"><button class="primary" id="addShoppingBarcode">${tr("addByBarcode")}</button><button class="secondary" id="addShoppingName">${tr("addByName")}</button></div>
+    <div class="list">${unchecked.map(s=>`<div class="item"><label><input type="checkbox" data-check="${s.id}"> ${esc(s.name)} × ${s.amount}</label><button class="danger-btn" data-shop-delete="${s.id}">${tr("delete")}</button></div>`).join("") || `<div class="empty">${tr("shoppingListEmpty")}</div>`}</div>
+    <section class="section"><h3>${tr("checkedItemsTitle")}</h3><div class="list">${checked.map(s=>`<div class="item"><label class="checked-item"><input type="checkbox" data-check="${s.id}" checked> ${esc(s.name)} × ${s.amount}</label><button class="danger-btn" data-shop-delete="${s.id}">${tr("delete")}</button></div>`).join("") || `<div class="empty">${tr("none")}</div>`}</div></section>`);
   document.querySelectorAll<HTMLInputElement>("[data-check]").forEach(x=>x.onchange=async()=>{const s=shopping.find(y=>y.id===x.dataset.check)!;s.checked=x.checked;await db.putShopping(s);await load();});
   document.querySelectorAll<HTMLElement>("[data-shop-delete]").forEach(x=>x.onclick=async()=>{await db.deleteShopping(x.dataset.shopDelete!);await load();});
   document.querySelector("#addShoppingBarcode")?.addEventListener("click",()=>openShoppingBarcode());
@@ -456,14 +442,13 @@ function renderShopping() {
 }
 
 function openShoppingBarcode() {
-  showModal(`<h2>${tr("scanBarcode")}</h2><div class="field"><label>${tr("barcodeLabel")}</label><input id="shoppingBarcode" type="text"></div><div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button><button class="primary" id="save">${tr("add")}</button></div>`, async()=>{
-    const value = document.querySelector<HTMLInputElement>("#shoppingBarcode")!.value.trim();
-    if(!value) return;
-    const item = items.find(i=>i.barcode===value);
-    if(item){ await db.putShopping({id:uid(),itemId:item.id,name:item.name,amount:1,checked:false}); }
-    else{ await db.putShopping({id:uid(),name:value,amount:1,checked:false}); }
+  barcodeScanHandler = async (barcode) => {
+    const item = items.find(i=>i.barcode===barcode);
+    if(item){ await db.putShopping({id:uid(),itemId:item.id,name:item.name,amount:1,checked:false}); await load(); return; }
+    await db.putShopping({id:uid(),name:barcode,amount:1,checked:false});
     await load();
-  });
+  };
+  openScanner();
 }
 
 function openShoppingName() {
@@ -478,12 +463,13 @@ function openShoppingName() {
 }
 
 function renderSettings() {
+  const unitRows = sizeUnits.map(u => `<div class="item"><div>${esc(u)}</div><div class="row"><button class="secondary" data-edit-unit="${esc(u)}">${tr("edit")}</button><button class="danger-btn" data-delete-unit="${esc(u)}">${tr("delete")}</button></div></div>`).join("");
   layout(`<section class="section"><h2>${tr("settingsTitle")}</h2>
-    <div class="card"><h3>${tr("appearanceTitle")}</h3><button class="secondary" id="toggleTheme">${tr("toggleTheme")}</button></div>
-    <div class="card" style="margin-top:12px"><h3>${tr("languageTitle")}</h3><div class="field"><label>${tr("languageLabel")}</label><select id="languageSelect"><option value="en">${tr("english")}</option><option value="de">${tr("german")}</option></select></div></div>
-    <div class="card" style="margin-top:12px"><h3>${tr("itemSizeUnitLabel")}</h3><button class="secondary" id="newUnit">${tr("addUnit")}</button><div class="list" style="margin-top:12px">${sizeUnits.map(u=>`<div class="item"><strong>${esc(u)}</strong><div class="row"><button class="secondary" data-edit-unit="${esc(u)}">${tr("edit")}</button><button class="danger-btn" data-delete-unit="${esc(u)}">${tr("delete")}</button></div></div>`).join("")}</div></div>
-    <div class="card" style="margin-top:12px"><h3>${tr("csvTitle")}</h3><div class="row"><button class="secondary" id="export">${tr("exportCsv")}</button><label class="secondary">${tr("importCsv")}<input id="import" type="file" accept=".csv,text/csv" hidden></label></div><p class="small muted">${tr("importNote")}</p></div>
-    <div class="settings-footer">${versionLabel()}</div>
+    <div class="field"><label>${tr("appearanceTitle")}</label><button class="primary" id="toggleTheme">${tr("toggleTheme")}</button></div>
+    <div class="field"><label>${tr("languageLabel")}</label><select id="languageSelect"><option value="en">${tr("english")}</option><option value="de">${tr("german")}</option></select></div>
+    <div class="field"><label>${tr("manageUnits")}</label><div class="row equal-buttons"><button class="primary" id="newUnit">${tr("addUnit")}</button></div></div>
+    <div class="list">${unitRows || `<div class="empty">${tr("none")}</div>`}</div>
+    <div class="field"><label>${tr("csvTitle")}</label><div class="row"><button class="secondary" id="export">${tr("exportCsv")}</button><input id="import" type="file" accept=".csv"></div></div>
   </section>`);
   document.querySelector("#toggleTheme")?.addEventListener("click",()=>{ currentTheme = currentTheme === "dark" ? "light" : "dark"; applyTheme(); });
   const languageSelect = document.querySelector<HTMLSelectElement>("#languageSelect");
@@ -501,6 +487,7 @@ function openMenu() {
     ${[
       ["dashboard",tr("dashboardNav")],["addremove",tr("addremoveNav")],["inventory",tr("inventoryNav")],["storage",tr("storageNav")],["reports-expiring",tr("reportsNav")],["shopping",tr("shoppingNav")],["categories",tr("categoriesNav")],["settings",tr("settingsNav")]
     ].map(([id,label])=>`<button data-nav="${id}">${label}</button>`).join("")}
+    <div class="drawer-footer">${versionLabel()}</div>
     <hr><button disabled>Recipes — future release</button><button disabled>Wishlist — future release</button>
   </div></div>`;
   overlay.querySelector(".drawer")?.addEventListener("click",e=>{if(e.target===e.currentTarget)overlay.innerHTML=""});
@@ -602,8 +589,8 @@ async function adjustItem(itemId:string, delta:number) {
 
 function openScanner() {
   const overlay=document.querySelector("#overlay")!;
-  overlay.innerHTML=`<div class="modal"><div class="modal-box"><h2>Scan barcode</h2><video id="video" class="scanner" autoplay muted playsinline></video><p class="small muted">Point the camera at a barcode. Chrome's BarcodeDetector is used when available.</p><div class="actions"><button class="secondary" id="cancel">Cancel</button></div></div></div>`;
-  overlay.querySelector("#cancel")?.addEventListener("click",()=>{stopCamera();overlay.innerHTML=""});
+  overlay.innerHTML=`<div class="modal"><div class="modal-box"><h2>${tr("scanModalTitle")}</h2><video id="video" class="scanner" autoplay muted playsinline></video><p class="small muted">${tr("scanModalHint")}</p><div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button></div></div></div>`;
+  overlay.querySelector("#cancel")?.addEventListener("click",()=>{stopCamera();barcodeScanHandler=null;overlay.innerHTML=""});
   startCamera();
 }
 
@@ -621,8 +608,17 @@ async function startCamera(){
       if(!document.querySelector("#video"))return;
       try{
         const codes=await detector.detect(video);
-        if(codes.length){stopCamera();document.querySelector("#overlay")!.innerHTML="";handleBarcode(codes[0].rawValue);}
-        else requestAnimationFrame(scan);
+        if(codes.length){
+          stopCamera();
+          document.querySelector("#overlay")!.innerHTML="";
+          const handler = barcodeScanHandler;
+          barcodeScanHandler = null;
+          if(handler){
+            await handler(codes[0].rawValue);
+          } else {
+            handleBarcode(codes[0].rawValue);
+          }
+        } else requestAnimationFrame(scan);
       }catch{requestAnimationFrame(scan);}
     };
     requestAnimationFrame(scan);
@@ -651,7 +647,7 @@ function newItemForm(barcode="", prefill: Partial<Record<string,string>> = {}, e
   const options=storage.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("");
   const unitOptions=sizeUnits.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("");
   const defaultAmount = prefill.amount || "1";
-  const defaultCategory = prefill.category ? getCategoryLabel(prefill.category) : "";
+  const defaultCategory = prefill.category ? getCategoryByValue(prefill.category)?.id || prefill.category : "";
   const defaultItemSize = prefill.itemSize || "";
   const defaultItemSizeUnit = prefill.itemSizeUnit || sizeUnits[0] || "amount";
   const defaultMinimum = prefill.minimum || "0";
@@ -665,8 +661,7 @@ function newItemForm(barcode="", prefill: Partial<Record<string,string>> = {}, e
   showModal(`<h2>${editId ? tr("edit") : tr("newItemTitle")}</h2><button class="icon-btn close-button" id="closeX" aria-label="${tr("cancel")}">×</button>
     <div class="field"><label>${tr("nameLabel")}</label><input id="name" type="text" value="${esc(defaultName)}"></div>
     <div class="field"><label>${tr("amountLabel")}</label><div class="amount-row"><button class="secondary small" type="button" id="decrementAmount">-</button><input id="amount" type="number" min="1" value="${esc(defaultAmount)}"><button class="secondary small" type="button" id="incrementAmount">+</button></div></div>
-    <div class="field"><label>${tr("categoryLabel")}</label><input list="categoryOptions" id="category" type="text" value="${esc(defaultCategory)}"></div>
-    <datalist id="categoryOptions">${categories.map(c=>`<option value="${esc(c.name)}"></option>`).join("")}</datalist>
+    <div class="field"><label>${tr("categoryLabel")}</label><div class="field-row"><select id="category"><option value="">—</option>${categories.map(c=>`<option value="${esc(c.id)}"${c.id===defaultCategory?` selected`:``}>${esc(categoryPath(c.id))}</option>`).join("")}</select><button class="secondary" type="button" id="newCategoryFromItem">+ ${tr("addCategory")}</button></div></div>
     <div class="field"><label>${tr("storagePlaceLabel")}</label><div class="field-row"><select id="storage">${storageOptions}</select><button class="secondary" type="button" id="newStorageFromItem">+ ${tr("addStoragePlace")}</button></div></div>
     <div class="field"><label>${tr("itemSizeLabel")}</label><div class="field-row"><input id="itemSize" type="number" min="0" step="any" value="${esc(defaultItemSize)}"><select id="itemSizeUnit">${unitOptionsWithSelected}</select></div></div>
     <div class="field"><label>${tr("bestBeforeLabel")}</label><input id="bestBefore" type="text" placeholder="mmyy" value="${esc(defaultBestBefore)}"></div>
@@ -677,13 +672,9 @@ function newItemForm(barcode="", prefill: Partial<Record<string,string>> = {}, e
     <div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button><button class="primary" id="save">${editId ? tr("save") : tr("create")}</button></div>`,async()=>{
       const name=document.querySelector<HTMLInputElement>("#name")!.value.trim();
       if(!name)return;
-      const categoryValue = document.querySelector<HTMLInputElement>("#category")!.value.trim();
+      const categoryId = document.querySelector<HTMLSelectElement>("#category")!.value;
       const bestBeforeValue = parseBestBefore(document.querySelector<HTMLInputElement>("#bestBefore")!.value);
-      const categoryId = getCategoryId(categoryValue) || categoryValue;
       const item:Item={id: editId ?? uid(),name,category:categoryId,itemSize:Number(document.querySelector<HTMLInputElement>("#itemSize")!.value)||0,itemSizeUnit:document.querySelector<HTMLSelectElement>("#itemSizeUnit")!.value as Item["itemSizeUnit"],barcode:document.querySelector<HTMLInputElement>("#barcode")!.value.trim(),notes:document.querySelector<HTMLTextAreaElement>("#notes")!.value,recipeRef:"",minimum:Number(document.querySelector<HTMLInputElement>("#minimum")!.value)||0};
-      if(categoryValue && !getCategoryByValue(categoryValue)){
-        await db.putCategory({id:uid(),name:categoryValue});
-      }
       await db.putItem(item);
       const sid=document.querySelector<HTMLSelectElement>("#storage")?.value || defaultStorage;
       const amount=Number(document.querySelector<HTMLInputElement>("#amount")!.value)||1;
@@ -703,7 +694,7 @@ function newItemForm(barcode="", prefill: Partial<Record<string,string>> = {}, e
     const state: Partial<Record<string,string>> = {
       name: document.querySelector<HTMLInputElement>("#name")!.value,
       amount: document.querySelector<HTMLInputElement>("#amount")!.value,
-      category: document.querySelector<HTMLInputElement>("#category")!.value,
+      category: document.querySelector<HTMLSelectElement>("#category")!.value,
       storage: document.querySelector<HTMLSelectElement>("#storage")!.value,
       itemSize: document.querySelector<HTMLInputElement>("#itemSize")!.value,
       itemSizeUnit: document.querySelector<HTMLSelectElement>("#itemSizeUnit")!.value,
@@ -713,6 +704,21 @@ function newItemForm(barcode="", prefill: Partial<Record<string,string>> = {}, e
       notes: document.querySelector<HTMLTextAreaElement>("#notes")!.value,
     };
     await storageForm(undefined, async()=>{ await load(); newItemForm(barcode, state, editId); }, async()=>{ await load(); newItemForm(barcode, state, editId); });
+  });
+  document.querySelector<HTMLButtonElement>("#newCategoryFromItem")?.addEventListener("click",async()=>{
+    const state: Partial<Record<string,string>> = {
+      name: document.querySelector<HTMLInputElement>("#name")!.value,
+      amount: document.querySelector<HTMLInputElement>("#amount")!.value,
+      category: document.querySelector<HTMLSelectElement>("#category")!.value,
+      storage: document.querySelector<HTMLSelectElement>("#storage")!.value,
+      itemSize: document.querySelector<HTMLInputElement>("#itemSize")!.value,
+      itemSizeUnit: document.querySelector<HTMLSelectElement>("#itemSizeUnit")!.value,
+      bestBefore: document.querySelector<HTMLInputElement>("#bestBefore")!.value,
+      minimum: document.querySelector<HTMLInputElement>("#minimum")!.value,
+      barcode: document.querySelector<HTMLInputElement>("#barcode")!.value,
+      notes: document.querySelector<HTMLInputElement>("#notes")!.value,
+    };
+    await categoryForm(undefined, async()=>{ await load(); newItemForm(barcode, state, editId); }, async()=>{ await load(); newItemForm(barcode, state, editId); });
   });
 }
 
