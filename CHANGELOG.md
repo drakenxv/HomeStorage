@@ -4,6 +4,8 @@
 ### added
 * "Add manually" button in add/remove screen
 
+---
+
 ## v0.2 2026-08-11
 ### added
 * Category dropdown list
@@ -21,12 +23,13 @@
 ### removed
 * in dashboard removed the tiles for "products", "units in stock", "below minimum"
 
+---
+
 ## v0.3 2026-08-11
 ### added
 * settings functionality to Create, Update or Delete item size units
 * "New Item" form
 ** add a "Cancel" button in form of an "x" in the top right corner
-
 
 ### changed
 * "New Item" form
@@ -55,3 +58,39 @@
 
 ### removed
 
+---
+
+## v0.4 2026-08-11
+### added
+* Storage
+** added parent-relations to storage places
+** view the inventory of a storage place
+* Inventory
+** added a filter function for categories
+** added a search function on the name
+* Inventory
+** added a button to view all listings of an item
+- where are the items placed
+- what best-before dates are there with what amount
+* Items
+** edit the details of an item
+* barcode scanning
+** if an item with the specific barcode is already created (even though not in stock) jump to the change amount screen and offer two new buttons: "create new" and "change item"
+
+
+### changed
+* reports
+** each report is now its own sub-screen
+** make the link to the Dashboard a proper button not a link formatting
+* "New Item" form
+** when adding a storage place but canceling not the entire form will be closed but only the "add storage place" form
+** drop down of categories does not work
+* Change item amount form
+** give it the same best-before settings as in the "New Item" form
+** the same +/- buttons for the Amount change as in v0.3
+** automatically select the same storage place as the majority of these items are already
+* Rename the title of the inventory page to "Inventory"
+
+### removed
+
+---

@@ -21,6 +21,7 @@ export type Stock = {
 export type Storage = {
   id: string;
   name: string;
+  parentId?: string;
 };
 
 export type Category = {

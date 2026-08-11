@@ -245,7 +245,7 @@ function layout(content: string) {
     <div class="app">
       <header class="topbar">
         <button class="icon-btn" id="menu">☰</button>
-        <h1><a href="#" id="homeLink">${tr("appTitle")}</a></h1>
+        <h1><button class="icon-btn" id="homeLink">${tr("inventoryTitle")}</button></h1>
         <button class="icon-btn" id="quick">＋</button>
       </header>
       <main class="content">${content}</main>
@@ -331,25 +331,38 @@ function renderAddRemovePage() {
   input.addEventListener("input", update); update();
 }
 
-function renderInventory() {
-  layout(`<section class="section"><h2>${tr("homeStorageTitle")}</h2><div class="tabs"><button data-filter="all">All</button>${storage.map(s=>`<button data-filter="${s.id}">${esc(s.name)}</button>`).join("")}</div><div class="list" id="inventoryList"></div></section>`);
+function renderInventory(initialFilter?: string) {
+  layout(`<section class="section"><h2>${tr("inventoryTitle")}</h2>
+    <div class="row"><select id="categoryFilter"><option value="all">${tr("allTitle")}</option>${categories.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</select>
+    <input id="inventorySearch" placeholder="${tr("searchPlaceholder")}"></div>
+    <div class="tabs"><button data-filter="all">All</button>${storage.map(s=>`<button data-filter="${s.id}">${esc(s.name)}</button>`).join("")}</div>
+    <div class="list" id="inventoryList"></div></section>`);
   const renderList = (filter="all") => {
-    const rows = items.filter(i => filter==="all" || stock.some(s=>s.itemId===i.id && s.storageId===filter)).map(i => {
+    const q = (document.querySelector<HTMLInputElement>("#inventorySearch")?.value || "").toLowerCase();
+    const cat = document.querySelector<HTMLSelectElement>("#categoryFilter")!.value;
+    const rows = items.filter(i => (filter==="all" || stock.some(s=>s.itemId===i.id && s.storageId===filter)) && (cat==="all" || i.category===categories.find(c=>c.id===cat)?.name) && (i.name.toLowerCase().includes(q) || i.category.toLowerCase().includes(q))).map(i => {
       const rows = stock.filter(s=>s.itemId===i.id && (filter==="all" || s.storageId===filter));
-      return `<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${rows.map(s=>`${esc(storageName(s.storageId))}: ${s.amount}${s.bestBefore ? ` · ${formatBestBefore(s.bestBefore)}`:""}`).join(" | ") || "No stock"}</div></div><span class="badge">${totalForItem(i.id)}</span></div>`;
+      return `<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${rows.map(s=>`${esc(storageName(s.storageId))}: ${s.amount}${s.bestBefore ? ` · ${formatBestBefore(s.bestBefore)}`:""}`).join(" | ") || "No stock"}</div></div><div class="row"><button class="secondary" data-listings="${i.id}">${tr("expiringTitle")}</button><button class="secondary" data-edit-item="${i.id}">${tr("edit")}</button></div><span class="badge">${totalForItem(i.id)}</span></div>`;
     }).join("");
-    document.querySelector("#inventoryList")!.innerHTML = rows || `<div class="empty">No inventory.</div>`;
+    document.querySelector("#inventoryList")!.innerHTML = rows || `<div class="empty">${tr("noInventory")}</div>`;
+    document.querySelectorAll<HTMLElement>("[data-listings]").forEach(b=>b.onclick=()=>showItemListings(b.dataset.listings!));
+    document.querySelectorAll<HTMLElement>("[data-edit-item]").forEach(b=>b.onclick=()=>{
+      const id = b.dataset.editItem!; const it = items.find(x=>x.id===id)!; newItemForm("",{name:it.name,category:it.category,itemSize:String(it.itemSize),itemSizeUnit:it.itemSizeUnit,minimum:String(it.minimum),barcode:it.barcode,notes:it.notes}, id);
+    });
   };
   document.querySelectorAll<HTMLButtonElement>("[data-filter]").forEach(b => b.onclick=()=>renderList(b.dataset.filter));
-  renderList();
+  document.querySelector<HTMLInputElement>("#inventorySearch")?.addEventListener("input",()=>renderList(initialFilter||"all"));
+  document.querySelector<HTMLSelectElement>("#categoryFilter")?.addEventListener("change",()=>renderList(initialFilter||"all"));
+  renderList(initialFilter||"all");
 }
 
 function renderStorage() {
-  layout(`<section class="section"><h2>Storage</h2><button class="primary" id="newStorage">Add storage place</button><div class="list" style="margin-top:12px">${storage.map(s=>`
-    <div class="item"><strong>${esc(s.name)}</strong><div class="row"><button class="secondary" data-edit="${s.id}">Edit</button><button class="danger-btn" data-delete="${s.id}">Delete</button></div></div>`).join("") || `<div class="empty">No storage places.</div>`}</div></section>`);
+  layout(`<section class="section"><h2>${tr("storageTitle")}</h2><button class="primary" id="newStorage">${tr("addStoragePlace")}</button><div class="list" style="margin-top:12px">${storage.map(s=>`
+    <div class="item"><div><strong>${esc(s.name)}</strong><div class="small">${s.parentId?`Parent: ${esc(storageName(s.parentId))}`:""}</div></div><div class="row"><button class="secondary" data-view="${s.id}">${tr("inventoryTitle")}</button><button class="secondary" data-edit="${s.id}">Edit</button><button class="danger-btn" data-delete="${s.id}">Delete</button></div></div>`).join("") || `<div class="empty">${tr("noStoragePlaces")}</div>`}</div></section>`);
   document.querySelector("#newStorage")?.addEventListener("click",()=>storageForm());
+  document.querySelectorAll<HTMLElement>("[data-view]").forEach(b=>b.onclick=()=>{currentView="inventory"; renderInventory(b.dataset.view);});
   document.querySelectorAll<HTMLElement>("[data-edit]").forEach(b=>b.onclick=()=>storageForm(b.dataset.edit));
-  document.querySelectorAll<HTMLElement>("[data-delete]").forEach(b=>b.onclick=async()=>{if(confirm("Delete storage place?")){await db.deleteStorage(b.dataset.delete!); await load();}});
+  document.querySelectorAll<HTMLElement>("[data-delete]").forEach(b=>b.onclick=async()=>{if(confirm(`${tr("delete")}?`)){await db.deleteStorage(b.dataset.delete!); await load();}});
 }
 
 function renderReports() {
@@ -403,11 +416,14 @@ function openAddRemove() {
 
 function storageForm(id?: string, onComplete?: ()=>Promise<void>) {
   const existing = storage.find(s=>s.id===id);
-  showModal(`<h2>${existing?"Edit":"Add"} storage place</h2><button class="icon-btn close-button" id="closeX" aria-label="${tr("cancel")}">×</button><div class="field"><label>${tr("nameLabel")}</label><input id="storageName" value="${esc(existing?.name??"")}"></div>
+  const parentOptions = `<option value="">—</option>` + storage.map(s=>`<option value="${esc(s.id)}" ${s.id===existing?.parentId?`selected`:``}>${esc(s.name)}</option>`).join("");
+  showModal(`<h2>${existing?tr("edit"):tr("addStoragePlace")}</h2><button class="icon-btn close-button" id="closeX" aria-label="${tr("cancel")}">×</button><div class="field"><label>${tr("nameLabel")}</label><input id="storageName" value="${esc(existing?.name??"")}"></div>
+  <div class="field"><label>Parent</label><select id="parent">${parentOptions}</select></div>
   <div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button><button class="primary" id="save">${tr("save")}</button></div>`, async()=>{
     const name=document.querySelector<HTMLInputElement>("#storageName")!.value.trim();
+    const parent=document.querySelector<HTMLSelectElement>('#parent')!.value || undefined;
     if(!name)return;
-    await db.putStorage({id:id??uid(),name});
+    await db.putStorage({id:id??uid(),name,parentId:parent});
     await load();
     if(onComplete) await onComplete();
   });
@@ -496,11 +512,22 @@ function stopCamera(){cameraStream?.getTracks().forEach(t=>t.stop());cameraStrea
 
 function handleBarcode(barcode:string){
   const item=items.find(i=>i.barcode===barcode);
-  if(item)adjustItem(item.id,1);
-  else newItemForm(barcode);
+  if(item){
+    if(totalForItem(item.id)===0){
+      showModal(`<h2>${tr("nameLabel")}: ${esc(item.name)}</h2><p class="muted">${tr("noInventory")}</p><div class="actions"><button class="secondary" id="createNew">${tr("add")}</button><button class="primary" id="changeItem">${tr("edit")}</button></div>`, async()=>{});
+      document.querySelector<HTMLButtonElement>('#createNew')?.addEventListener('click',()=>{document.querySelector('#overlay')!.innerHTML=''; adjustItem(item.id,1)});
+      document.querySelector<HTMLButtonElement>('#changeItem')?.addEventListener('click',()=>{document.querySelector('#overlay')!.innerHTML=''; newItemForm('',{},item.id)});
+    } else adjustItem(item.id,1);
+  } else newItemForm(barcode);
 }
 
-function newItemForm(barcode="", prefill: Partial<Record<string,string>> = {}){
+function showItemListings(itemId: string){
+  const i = items.find(x=>x.id===itemId)!;
+  const rows = stock.filter(s=>s.itemId===itemId).map(s=>`<div class="item"><div><strong>${esc(storageName(s.storageId))}</strong><div class="small">${s.amount} · ${s.bestBefore?formatBestBefore(s.bestBefore):tr('noDate')}</div></div></div>`).join("") || `<div class="empty">${tr("noInventory")}</div>`;
+  showModal(`<h2>${esc(i.name)}</h2><div class="list">${rows}</div><div class="actions"><button class="secondary" id="cancel">${tr("cancel")}</button></div>`, async()=>{});
+}
+
+function newItemForm(barcode="", prefill: Partial<Record<string,string>> = {}, editId?: string){
   const options=storage.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join("");
   const unitOptions=sizeUnits.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join("");
   const defaultAmount = prefill.amount || "1";
@@ -532,7 +559,7 @@ function newItemForm(barcode="", prefill: Partial<Record<string,string>> = {}){
       if(!name)return;
       const categoryValue = document.querySelector<HTMLInputElement>("#category")!.value.trim();
       const bestBeforeValue = parseBestBefore(document.querySelector<HTMLInputElement>("#bestBefore")!.value);
-      const item:Item={id:uid(),name,category:categoryValue,itemSize:Number(document.querySelector<HTMLInputElement>("#itemSize")!.value)||0,itemSizeUnit:document.querySelector<HTMLSelectElement>("#itemSizeUnit")!.value as Item["itemSizeUnit"],barcode:document.querySelector<HTMLInputElement>("#barcode")!.value.trim(),notes:document.querySelector<HTMLTextAreaElement>("#notes")!.value,recipeRef:"",minimum:Number(document.querySelector<HTMLInputElement>("#minimum")!.value)||0};
+      const item:Item={id: editId ?? uid(),name,category:categoryValue,itemSize:Number(document.querySelector<HTMLInputElement>("#itemSize")!.value)||0,itemSizeUnit:document.querySelector<HTMLSelectElement>("#itemSizeUnit")!.value as Item["itemSizeUnit"],barcode:document.querySelector<HTMLInputElement>("#barcode")!.value.trim(),notes:document.querySelector<HTMLTextAreaElement>("#notes")!.value,recipeRef:"",minimum:Number(document.querySelector<HTMLInputElement>("#minimum")!.value)||0};
       if(categoryValue && !categories.some(c=>c.name.toLowerCase()===categoryValue.toLowerCase())){
         await db.putCategory({id:uid(),name:categoryValue});
       }
