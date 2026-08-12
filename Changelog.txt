@@ -1,0 +1,156 @@
+# Changelog
+
+## v0.1 2026-08-11
+### added
+* "Add manually" button in add/remove screen
+
+---
+
+## v0.2 2026-08-11
+### added
+* Category dropdown list
+** free typing but also suggestions from previous entered categories
+** categories can be managed in a new "category" section in the burger menu
+* language switch
+** language switch german / english in settings
+
+### changed
+* in the add/remove screen changed the hint-text in the search box to "search by name or category"
+** removed functionality to search by barcode from search bar
+** added functionality to search by category to the search bar
+* made the add manually button the same size as the scan barcode button
+
+### removed
+* in dashboard removed the tiles for "products", "units in stock", "below minimum"
+
+---
+
+## v0.3 2026-08-11
+### added
+* settings functionality to Create, Update or Delete item size units
+* "New Item" form
+** add a "Cancel" button in form of an "x" in the top right corner
+
+
+### changed
+* "New Item" form
+** changed the order
+- Name
+- Amount
+--> add a "+" and "-" button at the end of the line to increase or decrease by one unit
+- category
+- storage place
+--> add a jumping point to a pop-up window to create a new storage place
+- item size
+- item size unit
+--> place the item size unit in the same line as the item size
+- best-before
+--> make the best before in the format of "mm/yy" and let me enter it by typing "mmyy" and interpret that as "01.mm.yyyy" in the report / dashboard
+- minimum
+- barcode
+- notes
+- Recipe Cross reference
+--> new name "recipes"
+--> it shall not be a text field but a dynamic list of every recipe where this item is used sorted a-z (future release)
+
+* Changed "Inventory" title to "HomeStorage"
+* title now a link to homescreen (Dashboard)
+* Dashboard has no "Add / remove items" button anymore
+
+### removed
+
+---
+
+## v0.4 2026-08-11
+### added
+* Storage 
+** added parent-relations to storage places
+** view the inventory of a storage place
+* Inventory
+** added a filter function for categories
+** added a search function on the name
+* Inventory
+** added a button to view all listings of an item
+- where are the items placed
+- what best-before dates are there with what amount
+* Items
+** edit the details of an item
+* barcode scanning
+** if an item with the specific barcode is already created (even though not in stock) jump to the change amount screen and offer two new buttons: "create new" and "change item"
+
+
+### changed
+* reports
+** each report is now its own sub-screen
+** make the link to the Dashboard a proper button not a link formatting
+* "New Item" form
+** when adding a storage place but canceling not the entire form will be closed but only the "add storage place" form
+** drop down of categories does not work
+* Change item amount form
+** give it the same best-before settings as in the "New Item" form
+** the same +/- buttons for the Amount change as in v0.3
+** automatically select the same storage place as the majority of these items are already
+* Rename the title of the inventory page to "Inventory"
+
+### removed
+
+---
+
+## v0.5 2026-08-11
+### added
+* settings
+** added dark/light mode functionality
+* shopping-list
+** add functionality to add an item by its barcode from the shoppinglist screen
+** add functionality to add an item just by name from the shoppinglist screen
+* prohibit deleting anything (storage, unit, item) when there is still items attached
+* add a 2 level parent relation to categories - so one top and one sub category like with the storage places (cf. changed log lower)
+
+### changed
+* language switch
+** check all labels and translate them correctly
+* removing items
+** when removing items, always remove from oldest to newest automatically so when i remove two items, it automatically removes two items from the list
+* Storage
+** Show the storage places in a tree-view as a nested list
+** in the selection of a parent, show the previous parent selection with a "slash" devider e.g. "top-parent/sub-parent/storage-place"
+* change text phrases to symbols in every language
+- change the "add" labels everywhere to "+"
+- change the "remove" labels everywhere to "-"
+- change the "edit" labels everywhere to a "pencil" symbol
+- change "view listings" labels everywhere to a "list" symbol
+- change "Inventory" labels everywhere to a "list" symbol
+- change "delete" labels everywhere to a "trashbin" symbol
+
+* correct the size of the "Add unit" form
+
+
+### removed
+
+## v0.6 2026-08-11
+* make the buttons all the same size and not e.g. the "+" button bigger than the "-" button
+* in the Inventory screen make all buttons right aligned, while the text stays left aligned
+
+
+## v0.7 2026-08-11
+* every button shall have the same height as the button next to it - on EVERY screen - so that it has a unified look
+* the list in the burger menu shall be left aligned
+* add the version information "(c) drakenvx - v0.7 2026-08-11" also in the burger menu
+* the category overview / selection still does not work - i want to select one of my existing categories. or make it with the storage places: only a dropdown no free text field and give me the option to add a new category in a pop up window
+* if an item on the shopping list has been bought and checked off it shall push it into a view of "checked" items
+* in the Shopping list "add with barcode" function, i want a barcode scanner
+* add a wastebin symbol everywhere where i can delete things
+* in the inventory section, change the filter for the storage into a dropdown list like with the categories
+
+## v0.8 2026-08-12
+* Name of the app (title next to the burger menu symbol) should be the page that I am currently on (Dashboard page = "Dashboard"; Inventory page = "Inventory")
+** remove the homepage-function from this label
+* In Inventory give the standard filter buttons the type "All places" and "All categories"
+** In the view page of an item, give it descriptive Labels in form of a table with storage location, amount and best-before date
+** move the amount number before the action buttons (so left of "view items" button)
+* the storage button in the burger menu links to the inventory page not the storage page
+* In the reports: highlight the currently selected Report and write its label name unter the selection button
+* the category button in the burger menu does not work and just closes the burger menu
+* make the Add / Remove page the homepage
+
+// after implementing everything, rewrite this changelog into added, changed, removed categories and write it, as it has been implemented and write it into the changelog.md file
