@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.8 2026-08-12
+### added
+* Inventory filter defaults are labeled "All places" and "All categories"
+* Storage and categories screens added with quick create/edit/delete flows
+* Drawer navigation highlights the active section
+* Report tabs now highlight the active sub-view and show clearer stock labels
+
+### changed
+* App header now displays the current page title instead of a home link button
+* Inventory item cards show amount before action buttons for better readability
+* Storage list items display total products count per place
+* Category list items display assigned product counts
+
+### fixed
+* Recipe/homepage link behavior removed from the header title label
+
+---
+
 ## v0.7 2026-08-11
 ### added
 * Checked-off shopping items now appear in a separate section on the shopping screen

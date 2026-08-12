@@ -21,7 +21,7 @@ const applyTheme = () => {
   localStorage.setItem("theme", currentTheme);
 };
 
-const appVersion = "v0.7 2026-08-11";
+const appVersion = "v0.8 2026-08-12";
 const versionLabel = () => `(c) drakenvx - ${appVersion}`;
 
 let barcodeScanHandler: ((barcode: string) => Promise<void>) | null = null;
@@ -118,6 +118,8 @@ const translations: Record<Lang, Record<string, string>> = {
     recipeRefLabel: "Recipe Cross reference",
     noStoragePlaces: "No storage places.",
     inventoryTitle: "Inventory",
+    allPlacesTitle: "All places",
+    allCategoriesTitle: "All categories",
     allTitle: "All",
     noInventory: "No inventory.",
     noExpiry: "Nothing expiring within 7 days.",
@@ -204,6 +206,8 @@ const translations: Record<Lang, Record<string, string>> = {
     recipeRefLabel: "Rezept-Referenz",
     noStoragePlaces: "Keine Lagerplätze.",
     inventoryTitle: "Inventar",
+    allPlacesTitle: "Alle Orte",
+    allCategoriesTitle: "Alle Kategorien",
     allTitle: "Alle",
     noInventory: "Kein Bestand.",
     noExpiry: "Keine Einträge laufen innerhalb von 7 Tagen ab.",
@@ -291,12 +295,27 @@ function storageName(storageId: string) {
   return storage.find(s => s.id === storageId)?.name ?? "Unknown";
 }
 
+const viewTitles: Record<string, string> = {
+  dashboard: "dashboardTitle",
+  addremove: "addRemoveTitle",
+  inventory: "inventoryTitle",
+  storage: "storageTitle",
+  reports: "reportsTitle",
+  "reports-expiring": "expiringTitle",
+  "reports-under": "underMinimumTitle",
+  shopping: "shoppingListTitle",
+  settings: "settingsTitle",
+  categories: "categoriesTitle",
+};
+
+const pageTitle = () => tr(viewTitles[currentView] || "appTitle");
+
 function layout(content: string) {
   app.innerHTML = `
     <div class="app">
       <header class="topbar">
         <button class="icon-btn" id="menu">☰</button>
-        <h1><button class="icon-btn" id="homeLink">${tr("inventoryTitle")}</button></h1>
+        <h1>${pageTitle()}</h1>
         <button class="icon-btn" id="quick">＋</button>
       </header>
       <main class="content">${content}</main>
@@ -304,7 +323,6 @@ function layout(content: string) {
     </div>`;
   document.querySelector("#menu")?.addEventListener("click", openMenu);
   document.querySelector("#quick")?.addEventListener("click", () => openAddRemove());
-  document.querySelector("#homeLink")?.addEventListener("click", e => { e.preventDefault(); currentView = "dashboard"; render(); });
 }
 
 function render() {
@@ -384,8 +402,8 @@ function renderInventory(initialFilter?: string) {
   const categoryOptions = categories.map(c=>`<option value="${esc(c.id)}">${esc(categoryPath(c.id))}</option>`).join("");
   const storageOptions = storage.map(s=>`<option value="${esc(s.id)}">${esc(storagePath(s.id))}</option>`).join("");
   layout(`<section class="section"><h2>${tr("inventoryTitle")}</h2>
-    <div class="row inventory-filters"><select id="categoryFilter"><option value="all">${tr("allTitle")}</option>${categoryOptions}</select>
-    <select id="storageFilter"><option value="all">${tr("allTitle")}</option>${storageOptions}</select>
+    <div class="row inventory-filters"><select id="storageFilter"><option value="all">${tr("allPlacesTitle")}</option>${storageOptions}</select>
+    <select id="categoryFilter"><option value="all">${tr("allCategoriesTitle")}</option>${categoryOptions}</select>
     <input id="inventorySearch" placeholder="${tr("searchPlaceholder")}"></div>
     <div class="list" id="inventoryList"></div></section>`);
   const renderList = () => {
@@ -398,8 +416,9 @@ function renderInventory(initialFilter?: string) {
         && (cat==="all" || categoryId === cat)
         && (i.name.toLowerCase().includes(q) || itemCategoryLabel(i).toLowerCase().includes(q));
     }).map(i => {
-      const rows = stock.filter(s=>s.itemId===i.id && (storageFilter==="all" || s.storageId===storageFilter));
-      return `<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${rows.map(s=>`${esc(storagePath(s.storageId))}: ${s.amount}${s.bestBefore ? ` · ${formatBestBefore(s.bestBefore)}`:""}`).join(" | ") || "No stock"} · ${esc(itemCategoryLabel(i))}</div></div><div class="row item-row"><button class="secondary" data-listings="${i.id}">${tr("viewListings")}</button><button class="secondary" data-edit-item="${i.id}">${tr("edit")}</button><button class="danger-btn" data-delete-item="${i.id}">${tr("delete")}</button></div><span class="badge">${totalForItem(i.id)}</span></div>`;
+      const stockRows = stock.filter(s=>s.itemId===i.id && (storageFilter==="all" || s.storageId===storageFilter));
+      const stockLabel = stockRows.map(s=>`${esc(storagePath(s.storageId))}: ${s.amount}${s.bestBefore ? ` · ${formatBestBefore(s.bestBefore)}`:""}`).join(" | ") || tr("noInventory");
+      return `<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${stockLabel} · ${esc(itemCategoryLabel(i))}</div></div><div class="row"><span class="badge">${totalForItem(i.id)}</span><div class="item-row"><button class="secondary" data-listings="${i.id}">${tr("viewListings")}</button><button class="secondary" data-edit-item="${i.id}">${tr("edit")}</button><button class="danger-btn" data-delete-item="${i.id}">${tr("delete")}</button></div></div></div>`;
     }).join("");
     document.querySelector("#inventoryList")!.innerHTML = rows || `<div class="empty">${tr("noInventory")}</div>`;
     document.querySelectorAll<HTMLElement>("[data-listings]").forEach(b=>b.onclick=()=>showItemListings(b.dataset.listings!));
@@ -418,12 +437,36 @@ function renderInventory(initialFilter?: string) {
   renderList();
 }
 
+function renderStorage() {
+  layout(`<section class="section"><h2>${tr("storageTitle")}</h2><div class="row equal-buttons"><button class="primary" id="newStorage">${tr("addStoragePlace")}</button></div>
+    <div class="list">${storage.map(s=>`<div class="item"><div><strong>${esc(storagePath(s.id))}</strong><div class="small">${stock.filter(x=>x.storageId===s.id).reduce((sum,x)=>sum+x.amount,0)} ${tr("productsLabel")}</div></div><div class="row item-row"><button class="secondary" data-edit-storage="${s.id}">${tr("edit")}</button><button class="danger-btn" data-delete-storage="${s.id}">${tr("delete")}</button></div></div>`).join("") || `<div class="empty">${tr("noStoragePlaces")}</div>`}</div></section>`);
+  document.querySelector<HTMLButtonElement>("#newStorage")?.addEventListener("click",()=>storageForm());
+  document.querySelectorAll<HTMLElement>("[data-edit-storage]").forEach(b=>b.onclick=()=>storageForm(b.dataset.editStorage));
+  document.querySelectorAll<HTMLElement>("[data-delete-storage]").forEach(b=>b.onclick=async()=>{
+    const id = b.dataset.deleteStorage!;
+    if (stock.some(x=>x.storageId===id)) { alert("Cannot delete a storage place while it contains stock."); return; }
+    if (confirm(`${tr("delete")}?`)) { await db.deleteStorage(id); await load(); }
+  });
+}
+
+function renderCategories() {
+  layout(`<section class="section"><h2>${tr("categoriesTitle")}</h2><div class="row equal-buttons"><button class="primary" id="newCategory">${tr("addCategory")}</button></div>
+    <div class="list">${categories.map(c=>`<div class="item"><div><strong>${esc(categoryPath(c.id))}</strong><div class="small">${items.filter(i=>getCategoryId(i.category)===c.id).length} ${tr("productsLabel")}</div></div><div class="row item-row"><button class="secondary" data-edit-category="${c.id}">${tr("edit")}</button><button class="danger-btn" data-delete-category="${c.id}">${tr("delete")}</button></div></div>`).join("") || `<div class="empty">${tr("none")}</div>`}</div></section>`);
+  document.querySelector<HTMLButtonElement>("#newCategory")?.addEventListener("click",()=>categoryForm());
+  document.querySelectorAll<HTMLElement>("[data-edit-category]").forEach(b=>b.onclick=()=>categoryForm(b.dataset.editCategory));
+  document.querySelectorAll<HTMLElement>("[data-delete-category]").forEach(b=>b.onclick=async()=>{
+    const id = b.dataset.deleteCategory!;
+    if (categories.some(x=>x.parentId===id) || items.some(i=>getCategoryId(i.category)===id)) { alert("Cannot delete a category that has children or items assigned."); return; }
+    if (confirm(`${tr("delete")}?`)) { await db.deleteCategory(id); await load(); }
+  });
+}
+
 function renderReports(section: "expiring" | "under" = "expiring") {
   const expiring = stock.filter(s => daysUntil(s.bestBefore) <= 7);
   const under = items.filter(i => totalForItem(i.id) < i.minimum);
   layout(`<section class="section"><h2>${tr("reportsTitle")}</h2>
-    <div class="row"><button class="secondary" data-report="expiring">${tr("expiringTitle")}</button><button class="secondary" data-report="under">${tr("underMinimumTitle")}</button></div>
-    ${section === "expiring" ? `<div class="list">${expiring.map(stockRow).join("") || `<div class="empty">${tr("none")}</div>`}</div>` : `<div class="list">${under.map(i=>`<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${tr("shoppingListTitle")}: ${totalForItem(i.id)} · ${tr("minimumLabel")}: ${i.minimum}</div></div><button class="secondary" data-shop="${i.id}">${tr("shoppingListTitle")}</button></div>`).join("") || `<div class="empty">${tr("none")}</div>`}</div>`}
+    <div class="tabs"><button class="secondary${section==="expiring" ? " active" : ""}" data-report="expiring">${tr("expiringTitle")}</button><button class="secondary${section==="under" ? " active" : ""}" data-report="under">${tr("underMinimumTitle")}</button></div>
+    ${section === "expiring" ? `<div class="list">${expiring.map(stockRow).join("") || `<div class="empty">${tr("none")}</div>`}</div>` : `<div class="list">${under.map(i=>`<div class="item"><div><strong>${esc(i.name)}</strong><div class="small">${tr("unitsInStockLabel")}: ${totalForItem(i.id)} · ${tr("minimumLabel")}: ${i.minimum}</div></div><button class="secondary" data-shop="${i.id}">${tr("shoppingNav")}</button></div>`).join("") || `<div class="empty">${tr("none")}</div>`}</div>`}
   </section>`);
   document.querySelectorAll<HTMLElement>("[data-report]").forEach(b=>b.onclick=()=>{currentView = b.dataset.report === "under" ? "reports-under" : "reports-expiring"; render();});
   document.querySelectorAll<HTMLElement>("[data-shop]").forEach(b=>b.onclick=async()=>{const i=items.find(x=>x.id===b.dataset.shop)!;await db.putShopping({id:uid(),itemId:i.id,name:i.name,amount:Math.max(i.minimum-totalForItem(i.id),1),checked:false});await load();});
@@ -485,8 +528,8 @@ function openMenu() {
   const overlay = document.querySelector("#overlay")!;
   overlay.innerHTML = `<div class="drawer"><div class="drawer-panel"><h2>${tr("homeStorageTitle")}</h2>
     ${[
-      ["dashboard",tr("dashboardNav")],["addremove",tr("addremoveNav")],["inventory",tr("inventoryNav")],["storage",tr("storageNav")],["reports-expiring",tr("reportsNav")],["shopping",tr("shoppingNav")],["categories",tr("categoriesNav")],["settings",tr("settingsNav")]
-    ].map(([id,label])=>`<button data-nav="${id}">${label}</button>`).join("")}
+      ["dashboard",tr("dashboardNav")],["addremove",tr("addremoveNav")],["inventory",tr("inventoryNav")],["storage",tr("storageNav")],["reports",tr("reportsNav")],["shopping",tr("shoppingNav")],["categories",tr("categoriesNav")],["settings",tr("settingsNav")]
+    ].map(([id,label])=>`<button data-nav="${id}"${(currentView===id || (id==="reports" && currentView.startsWith("reports")))?` class="active"`:``}>${label}</button>`).join("")}
     <div class="drawer-footer">${versionLabel()}</div>
     <hr><button disabled>Recipes — future release</button><button disabled>Wishlist — future release</button>
   </div></div>`;
